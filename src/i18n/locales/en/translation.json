@@ -1,0 +1,437 @@
+{
+  "auth": {
+    "login": {
+      "title": "Login to <1>Evally</1>",
+      "username": "Username",
+      "password": "Password",
+      "rememberMe": "Remember Me",
+      "forgotPassword": "Forgot Password?",
+      "loginButton": "Login",
+      "noAccount": "Don't have an account?",
+      "registerLink": "Register here"
+    },
+    "register": {
+      "title": "Create an Account",
+      "name": "Name",
+      "email": "Email",
+      "confirmPassword": "Confirm Password",
+      "registerButton": "Register",
+      "alreadyHaveAccount": "Already have an account?",
+      "loginLink": "Login here"
+    },
+    "resetPassword": {
+      "title": "Reset Password",
+      "email": "Email",
+      "sendResetLinkButton": "Send Reset Link"
+    },
+    "misc": {
+      "withProvider": "or {{action}} with",
+      "signInWith": "Login with {{provider}}",
+      "registerWith": "Register with {{provider}}"
+    }
+  },
+  "navbar": {
+    "home": "Home",
+    "pricing": "Pricing",
+    "contact": "Contact",
+    "about": "About Us",
+    "login": "Login",
+    "register": "Register",
+    "authdropdown": {
+      "header": {
+        "title": "Quick Actions",
+        "subtitle": "Manage your account"
+      },
+      "items": {
+        "dashboard": "Dashboard",
+        "settings": "Settings",
+        "logout": "Log Out"
+      },
+      "footer": {
+        "version": "v1.0.0"
+      }
+    }
+  },
+  "footer": {
+    "tagline": "Evally lets students share feedback and insights about their courses to improve the learning experience",
+    "about": {
+      "title": "About Us",
+      "contact": "Contact",
+      "blog": "Blog",
+      "ourStory": "Our Story",
+      "carrers": "Careers"
+    },
+    "company": {
+      "title": "Company",
+      "press": "Press",
+      "brandAssets": "Brand Assets",
+      "changeLog": "Change Log",
+      "helpCenter": "Help Center"
+    },
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "contact": "Contact Us",
+    "socialMedia": {
+      "twitterUpdate": "Follow us on Twitter for updates",
+      "discordUpdate": "Join our Discord channel for updates",
+      "telegramUpdate": "Join our Telegram channel for updates"
+    }
+  },
+  "home": {
+    "banner": {
+      "slides": [
+        {
+          "title": "AI Grading",
+          "subtitle": "Save time, improve education quality"
+        },
+        {
+          "title": "Accurate and Fair",
+          "subtitle": "Advanced AI analysis, detailed per paper"
+        },
+        {
+          "title": "Supports Multiple Subjects",
+          "subtitle": "Math, Literature, English, Science and more"
+        }
+      ],
+      "button": "Discover Now"
+    },
+    "features": {
+      "title": "Why Choose Evally?",
+      "items": [
+        {
+          "title": "Fast",
+          "desc": "Grade papers in seconds, save hours of work"
+        },
+        {
+          "title": "Accurate",
+          "desc": "AI trained on millions of papers with 99.8% accuracy"
+        },
+        {
+          "title": "Professional",
+          "desc": "Detailed reports analyzing strengths and weaknesses"
+        }
+      ]
+    },
+    "partners": {
+      "title": "Trusted Partners",
+      "items": [
+        "Polytechnic University",
+        "Economics University",
+        "Le Quy Don High School",
+        "Tran Phu High School",
+        "Ho Chi Minh City Department of Education",
+        "Technology Academy"
+      ]
+    },
+    "stats": {
+      "graded_exams": "Graded Exams",
+      "trusted_teachers": "Trusted Teachers",
+      "accuracy": "Accuracy"
+    },
+    "cta": {
+      "title": "Ready to experience?",
+      "subtitle": "Join thousands of teachers using Evally to enhance teaching quality and save grading time.",
+      "button1": "Try for Free",
+      "button2": "Contact Us",
+      "feature1": "30 days free",
+      "feature2": "24/7 support",
+      "feature3": "No contract commitment"
+    }
+  },
+  "pricing": {
+    "header": {
+      "title": "Service Pricing",
+      "subtitle": "Choose the plan that fits your needs. All plans can be upgraded or canceled at any time."
+    },
+    "toggle": {
+      "monthly": "Monthly",
+      "annual": "Annual",
+      "discount": "-25%"
+    },
+    "plan": {
+      "popular": "Most Popular",
+      "contact": "Contact Us",
+      "custom_quote": "Custom quote available",
+      "button_contact": "Contact Sales",
+      "button_start": "Get Started",
+      "period": {
+        "month": "/month",
+        "year": "/year"
+      },
+      "starter": {
+        "name": "Starter",
+        "desc": "For individual teachers just getting started",
+        "features": [
+          "100 exams/month",
+          "Auto-grading",
+          "Basic reports",
+          "Email support",
+          "2 subjects",
+          "1GB storage"
+        ]
+      },
+      "professional": {
+        "name": "Professional",
+        "desc": "Ideal for professional teachers",
+        "features": [
+          "500 exams/month",
+          "Grading + detailed analysis",
+          "Advanced reports",
+          "Priority support",
+          "5 subjects",
+          "5GB storage",
+          "Export to PDF/Excel",
+          "Basic API integration"
+        ]
+      },
+      "premium": {
+        "name": "Premium",
+        "desc": "For schools and educational organizations",
+        "features": [
+          "2000 exams/month",
+          "Advanced AI analysis",
+          "Management dashboard",
+          "24/7 support",
+          "Unlimited subjects",
+          "20GB storage",
+          "Customizable reports",
+          "Full API access",
+          "Multi-user accounts",
+          "Automatic backups"
+        ]
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "desc": "Custom solution for large organizations",
+        "features": [
+          "Unlimited exams",
+          "Custom AI solutions",
+          "Enterprise dashboard",
+          "Dedicated support team",
+          "System integration",
+          "Unlimited storage",
+          "White-label solution",
+          "SLA 99.9% uptime",
+          "Training & onboarding",
+          "Custom features",
+          "Advanced security",
+          "Compliance support"
+        ]
+      }
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "items": [
+        {
+          "q": "Can I change my plan later?",
+          "a": "Yes, you can upgrade or downgrade your plan anytime. Changes will take effect immediately."
+        },
+        {
+          "q": "Do you support bank payments?",
+          "a": "Yes, we support credit card, bank transfer, and popular e-wallets."
+        },
+        {
+          "q": "Is my data secure?",
+          "a": "All data is encrypted and stored on secure servers. We comply with international security standards."
+        },
+        {
+          "q": "Is training available?",
+          "a": "Yes, all plans include detailed guides. Premium and Enterprise plans offer direct training sessions."
+        }
+      ]
+    },
+    "bottom_cta": {
+      "title": "Not Sure Yet?",
+      "subtitle": "Try it free for 14 days with no credit card required.",
+      "button_try": "Try for Free",
+      "button_demo": "View Demo"
+    }
+  },
+  "subscription": {
+    "features": {
+      "MAX_USERS": "Maximum Users",
+      "MAX_ADMINS": "Maximum Admins",
+      "INVITE_GUESTS": "Invite Guests",
+      "UNLIMITED_PROJECTS": "Unlimited Projects",
+      "FILE_UPLOAD": "File Upload",
+      "FILE_STORAGE_MB": "File Storage (MB)",
+      "HISTORY_RETENTION_DAYS": "History Retention (days)",
+      "CUSTOM_BRANDING": "Custom Branding",
+      "ANALYTICS_DASHBOARD": "Analytics Dashboard",
+      "PRIORITY_SUPPORT": "Priority Support",
+      "EXPORT_DATA": "Export Data",
+      "INTEGRATIONS": "Integrations",
+      "MULTI_LANGUAGE_SUPPORT": "Multi-language Support",
+      "SSO_AUTHENTICATION": "SSO Authentication",
+      "TWO_FACTOR_AUTH": "Two-Factor Authentication",
+      "API_ACCESS": "API Access",
+      "API_RATE_LIMIT_PER_MINUTE": "API Rate Limit (per minute)",
+      "API_WEBHOOKS": "API Webhooks",
+      "API_SANDBOX_MODE": "API Sandbox Mode",
+      "INVOICE_DOWNLOAD": "Invoice Download",
+      "CUSTOM_BILLING_CYCLE": "Custom Billing Cycle",
+      "TEAM_CHAT": "Team Chat",
+      "TASK_ASSIGNMENT": "Task Assignment",
+      "AUTOMATION_RULES": "Automation Rules",
+      "WORKFLOW_TEMPLATES": "Workflow Templates",
+      "ENCRYPTION_AT_REST": "Encryption at Rest",
+      "AUDIT_LOGS": "Audit Logs",
+      "ROLE_BASED_ACCESS": "Role-Based Access",
+      "AI_ASSISTANT": "AI Assistant",
+      "AI_GENERATION_LIMIT": "AI Generation Limit",
+      "CUSTOM_DOMAINS": "Custom Domains",
+      "MULTI_WORKSPACE_SUPPORT": "Multi-workspace Support",
+      "SUPPORT_RESPONSE_TIME_HOURS": "Support Response Time (hours)",
+      "EXTENDED_LOGS_RETENTION_DAYS": "Extended Logs Retention (days)"
+    }
+  },
+  "contact": {
+    "header": {
+      "title": "Contact Us",
+      "subtitle": "Ready to support you 24/7 with professional grading services"
+    },
+    "info": {
+      "title": "Contact Information",
+      "address": {
+        "title": "Address",
+        "detail": "123 Nguyen Van Cu Street, District 1, Ho Chi Minh City"
+      },
+      "phone": {
+        "title": "Phone",
+        "detail": "+84 901 234 567"
+      },
+      "email": {
+        "title": "Email",
+        "detail": "support@evally.vn"
+      },
+      "hours": {
+        "title": "Working Hours",
+        "detail": "Monday - Sunday: 8:00 AM - 10:00 PM"
+      }
+    },
+    "emergency": {
+      "title": "Emergency Support",
+      "desc": "Need urgent assistance? Our technical team is available 24/7 to help you.",
+      "hotline": "Hotline: 1900 1234"
+    },
+    "map": {
+      "title": "Our Location",
+      "interactive": {
+        "title": "Interactive Map",
+        "desc": "Click to view on Google Maps"
+      },
+      "office": {
+        "title": "Main Office",
+        "desc": "Modern building, convenient transportation, close to major universities"
+      },
+      "button": "Get Directions"
+    }
+  },
+  "about": {
+    "header": {
+      "title": "About Evally",
+      "subtitle": "Pioneering the application of AI to revolutionize Vietnam's education system"
+    },
+    "mission": {
+      "title": "Our Mission",
+      "desc": "Evally was born with the mission to democratize educational assessment through advanced AI technology. We believe every student deserves fair, accurate, and timely evaluations to help them reach their fullest potential."
+    },
+    "vision": {
+      "title": "Our Vision",
+      "desc": "To become Southeast Asia's leading AI platform in educational assessment, contributing to raising educational quality and nurturing a generation of critical thinkers, innovators, and future-ready individuals."
+    },
+    "story": {
+      "title": "Our Story",
+      "part1": "Evally was founded in 2023 by a group of AI engineers and education experts who shared a passion for improving the education system. It stemmed from the realization that teachers spent too much time on grading instead of focusing on teaching and engaging with students.",
+      "part2": "After two years of research and development, we created an AI system capable of understanding and assessing student work as accurately as humans, even surpassing them in consistency and objectivity. Our system not only grades but also provides detailed feedback to help students understand their strengths and areas for improvement."
+    },
+    "values": {
+      "title": "Core Values",
+      "excellence": {
+        "title": "Excellence",
+        "desc": "We constantly strive to deliver the best product for our users."
+      },
+      "collaboration": {
+        "title": "Collaboration",
+        "desc": "Working closely with teachers and students to understand real needs."
+      },
+      "innovation": {
+        "title": "Innovation",
+        "desc": "Pioneering the use of the latest technologies in education."
+      }
+    },
+    "achievements": {
+      "title": "Our Achievements",
+      "schools": "Partner Schools",
+      "teachers": "Teachers Using Evally",
+      "exams": "Exams Graded",
+      "uptime": "System Uptime"
+    }
+  },
+  "tos": {
+    "title": "Terms of Service",
+    "lastUpdated": "Last updated: May 20, 2025",
+    "intro": "By accessing and using our platform, you agree to be bound by these Terms of Service. If you do not agree with any part of the terms, you may not access the service.",
+    "section1": {
+      "title": "1. Use of the Service",
+      "content": "You agree to use the service in compliance with all applicable local, state, national, and international laws and regulations."
+    },
+    "section2": {
+      "title": "2. Account Responsibilities",
+      "content": "You are responsible for maintaining the confidentiality of your account credentials and all activities that occur under your account."
+    },
+    "section3": {
+      "title": "3. Intellectual Property",
+      "content": "All content, trademarks, and data on this site, including but not limited to software, databases, text, graphics, icons, and hyperlinks are the property of Evally or its licensors."
+    },
+    "section4": {
+      "title": "4. Termination",
+      "content": "We may suspend or terminate your access to the service at any time without prior notice or liability, for any reason, including if you breach the Terms."
+    },
+    "section5": {
+      "title": "5. Disclaimer of Warranty",
+      "content": "The service is provided on an 'as is' and 'as available' basis. We disclaim all warranties of any kind."
+    },
+    "section6": {
+      "title": "6. Limitation of Liability",
+      "content": "In no event shall Evally be liable for any indirect, incidental, special, consequential or punitive damages arising out of your access to or use of the service."
+    },
+    "section7": {
+      "title": "7. Changes to Terms",
+      "content": "We reserve the right to update or modify these terms at any time without prior notice. Your continued use of the service after such changes constitutes your acceptance of the new terms."
+    }
+  },
+  "policy": {
+    "title": "Privacy Policy",
+    "lastUpdated": "Last updated: May 20, 2025",
+    "intro": "This Privacy Policy explains how we collect, use, and protect your personal information when you use our services.",
+    "section1": {
+      "title": "1. Information We Collect",
+      "content": "We collect personal information that you provide to us directly, as well as data collected automatically such as browser type, IP address, and usage data."
+    },
+    "section2": {
+      "title": "2. How We Use Your Information",
+      "content": "We use the collected information to provide and improve our services, personalize user experience, and ensure platform security."
+    },
+    "section3": {
+      "title": "3. Sharing of Information",
+      "content": "We do not sell your personal information. We may share it with third-party service providers for the purposes of platform functionality, analytics, or compliance."
+    },
+    "section4": {
+      "title": "4. Data Security",
+      "content": "We implement reasonable technical and organizational measures to protect your data against unauthorized access, alteration, disclosure, or destruction."
+    },
+    "section5": {
+      "title": "5. Cookies and Tracking",
+      "content": "We use cookies to enhance your experience. You can disable cookies in your browser settings, though some features may not function properly."
+    },
+    "section6": {
+      "title": "6. Your Rights",
+      "content": "You have the right to access, correct, or delete your personal information at any time by contacting our support team."
+    },
+    "section7": {
+      "title": "7. Changes to This Policy",
+      "content": "We may update this Privacy Policy occasionally. Continued use of our services after changes are posted indicates your agreement to the revised policy."
+    }
+  }
+}
