@@ -6,7 +6,7 @@ export { default as Dashboard } from './pages/Dashboard';
 export { default as UserManagement } from './pages/user-management/UserManagement';
 export { default as PermissionManagement } from './pages/permission-management/PermissionManagement';
 export { default as SubscriptionManagement } from './pages/subscription-management/SubscriptionManagement';
-export { default as PaymentManagement } from './pages/payment-management/PaymentManagement';
+export { default as TransactionManagement } from './pages/transaction-management/TransactionManagement';
 
 //settings
 export { default as AccountSettings } from './pages/settings/AccountSettings';
