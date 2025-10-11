@@ -2,7 +2,7 @@ import React from 'react'
 import MyPayment from './components/MyPaymentManagement';
 import { useAuth } from '@/context/AuthContext';
 
-const PaymentManagement: React.FC = () => {
+const TransactionManagement: React.FC = () => {
     const {} = useAuth();
 
     return (
@@ -10,4 +10,4 @@ const PaymentManagement: React.FC = () => {
     );
 };
 
-export default PaymentManagement;
+export default TransactionManagement;
