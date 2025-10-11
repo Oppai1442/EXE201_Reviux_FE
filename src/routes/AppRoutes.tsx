@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { ROUTES } from '@/constant/routes';
 import { CheckoutPage } from '@/modules/checkout';
-import { PaymentManagement } from '@/modules/dashboard';
+import { TransactionManagement } from '@/modules/dashboard';
 
 // Lazy load components
 const Home = lazy(() => import('@/modules/home'));
@@ -60,7 +60,7 @@ const routes = [
       { path: ROUTES.DASHBOARD.child.USER_MANAGEMENT.path, element: <UserManagement />},
       { path: ROUTES.DASHBOARD.child.PERMISSION_MANAGEMENT.path, element: <PermissionManagement /> },
       { path: ROUTES.DASHBOARD.child.SUBSCRIPTIONS.path, element: <SubscriptionManagement /> },
-      { path: ROUTES.DASHBOARD.child.PAYMENT.path, element: <PaymentManagement /> },
+      { path: ROUTES.DASHBOARD.child.TRANSACTION.path, element: <TransactionManagement /> },
 
       //Notification
       // { path: ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.path, element: <NotificationManagement /> },
