@@ -18,7 +18,7 @@ const Toast = Swal.mixin({
 const showToast = (
   type: SweetAlertIcon,
   message: string,
-  position: SweetAlertPosition = 'top-end',
+  position: SweetAlertPosition = 'bottom-right',
   timer: number = 3000
 ) => {
   Toast.fire({
