@@ -138,7 +138,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div>
                 <div className="text-xl font-light">
                   <span className="bg-gradient-to-r from-white to-cyan-400 bg-clip-text text-transparent">
-                    Evally
+                    Reviux
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 font-light">Admin Dashboard</div>
@@ -246,7 +246,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-light text-white truncate">Admin User</div>
-                  <div className="text-xs text-gray-500 font-light">admin@evally.com</div>
+                  <div className="text-xs text-gray-500 font-light">admin@reviux.com</div>
                 </div>
               </div>
             </div>

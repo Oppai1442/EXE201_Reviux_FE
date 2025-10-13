@@ -10,6 +10,9 @@ import {
   Search,
   CheckCircle
 } from 'lucide-react';
+import { useAuth } from "@/context/AuthContext";
+import { ROUTES } from "@/constant/routes";
+import { useNavigate } from "react-router-dom";
 
 const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
@@ -19,6 +22,9 @@ const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const { loading, user, logOut } = useAuth();
+
+  const navigate = useNavigate();
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
@@ -65,8 +71,8 @@ const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
   };
 
   const handleLogout = () => {
-    // Handle logout logic
-    console.log('Logging out');
+      logOut();
+      navigate(ROUTES.HOME.path)
   };
 
   return (
@@ -107,7 +113,7 @@ const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
               <div className="relative group">
                 <div className="text-2xl font-light text-white hover:text-cyan-400 transition-colors duration-300 cursor-pointer">
                   <span className="bg-gradient-to-r from-white to-cyan-400 bg-clip-text text-transparent">
-                    Evally
+                    Reviux
                   </span>
                 </div>
                 <div className="absolute inset-0 blur-xl opacity-0 group-hover:opacity-30 bg-cyan-400 transition-opacity duration-300" />

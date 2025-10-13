@@ -48,7 +48,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <STOMPProvider>
       <AuthProvider>
-        {matchedConfig.showNav && <Navbar />}
+        {matchedConfig.showNav && (
+          <Navbar
+            sidebarOpen={false}
+            setSidebarOpen={() => {}}
+          />
+        )}
         <main className={styles.mainContainer}>{children}</main>
         {matchedConfig.showFooter && <Footer />}
       </AuthProvider>
@@ -70,7 +75,7 @@ const App: React.FC = () => {
               width: "100%",
             }}
           >
-            <Loading isVisible={true} />
+            <Loading isVisible variant="fullscreen" />
           </div>
         }
       >

@@ -8,6 +8,10 @@ export { default as PermissionManagement } from './pages/permission-management/P
 export { default as SubscriptionManagement } from './pages/subscription-management/SubscriptionManagement';
 export { default as TransactionManagement } from './pages/transaction-management/TransactionManagement';
 
+//request management
+export { default as MyRequest } from './pages/testing-request/MyRequests';
+export { default as RequestManagement } from './pages/testing-request/RequestManagement';;
+
 //settings
 export { default as AccountSettings } from './pages/settings/AccountSettings';
 export { default as SecuritySettings } from './pages/settings/SecuritySettings';

@@ -1,26 +1,77 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Check, X, Star, Zap, Shield, Rocket, ArrowRight, ChevronDown } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { showToast } from '@/utils';
+import { ROUTES } from '@/constant/routes';
+import { generateCheckoutAPI, getMiniSubscription } from '../services/PricingService';
+import type { SubscriptionMini, feature as SubscriptionFeature } from '../types/model';
+
+type NormalizedPlan = {
+  id: number;
+  name: string;
+  description: string;
+  icon: ReactNode;
+  price: {
+    monthly: number;
+    yearly: number;
+  };
+  originalPrice: {
+    monthly: number;
+    yearly: number;
+  };
+  features: string[];
+  limitations: string[];
+  popular: boolean;
+  color: string;
+};
+
+const resolveIcon = (iconName?: string): ReactNode => {
+  const normalized = iconName?.toLowerCase() ?? '';
+
+  switch (normalized) {
+    case 'shield':
+      return <Shield className="w-8 h-8" />;
+    case 'rocket':
+      return <Rocket className="w-8 h-8" />;
+    case 'star':
+      return <Star className="w-8 h-8" />;
+    default:
+      return <Zap className="w-8 h-8" />;
+  }
+};
 
 const PlansPage = () => {
   const [isYearly, setIsYearly] = useState(false);
-  const [visibleElements, setVisibleElements] = useState(new Set());
-  const observerRef = useRef(null);
+  const [rawPlans, setRawPlans] = useState<SubscriptionMini[]>([]);
+  const [checkoutProcessingId, setCheckoutProcessingId] = useState<number | null>(null);
+  const [visibleElements, setVisibleElements] = useState<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const { t } = useTranslation();
+  const { loggedIn, showAuthModal } = useAuth();
+  const navigate = useNavigate();
 
   // Intersection observer for animations
   useEffect(() => {
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setVisibleElements(prev => new Set([...prev, entry.target.id]));
+          if (entry.isIntersecting && entry.target.id) {
+            setVisibleElements((prev) => {
+              if (prev.has(entry.target.id)) {
+                return prev;
+              }
+              const next = new Set(prev);
+              next.add(entry.target.id);
+              return next;
+            });
           }
         });
       },
       { threshold: 0.1 }
     );
-
-    const elements = document.querySelectorAll('[data-animate]');
-    elements.forEach((el) => observerRef.current.observe(el));
 
     return () => {
       if (observerRef.current) {
@@ -29,80 +80,136 @@ const PlansPage = () => {
     };
   }, []);
 
-  const plans = [
-    {
-      id: 'starter',
-      name: 'Starter',
-      icon: <Zap className="w-8 h-8" />,
-      price: { monthly: 29, yearly: 290 },
-      originalPrice: { monthly: 39, yearly: 390 },
-      description: 'Perfect for small projects and startups',
-      features: [
-        'Up to 50 test cases',
-        'Basic reporting',
-        'Email support',
-        'API access',
-        'Mobile testing',
-        '1 team member'
-      ],
-      limitations: [
-        'Advanced analytics',
-        'Custom integrations',
-        'Priority support'
-      ],
-      popular: false,
-      color: 'gray'
-    },
-    {
-      id: 'professional',
-      name: 'Professional',
-      icon: <Shield className="w-8 h-8" />,
-      price: { monthly: 79, yearly: 790 },
-      originalPrice: { monthly: 99, yearly: 990 },
-      description: 'Ideal for growing teams and businesses',
-      features: [
-        'Up to 500 test cases',
-        'Advanced reporting',
-        'Priority support',
-        'API access',
-        'Mobile & web testing',
-        'Up to 5 team members',
-        'Custom integrations',
-        'Analytics dashboard'
-      ],
-      limitations: [
-        'White-label reports',
-        'Custom workflows'
-      ],
-      popular: true,
-      color: 'cyan'
-    },
-    {
-      id: 'enterprise',
-      name: 'Enterprise',
-      icon: <Rocket className="w-8 h-8" />,
-      price: { monthly: 199, yearly: 1990 },
-      originalPrice: { monthly: 249, yearly: 2490 },
-      description: 'For large organizations and enterprises',
-      features: [
-        'Unlimited test cases',
-        'Advanced reporting',
-        'Dedicated support',
-        'Full API access',
-        'All testing types',
-        'Unlimited team members',
-        'Custom integrations',
-        'Advanced analytics',
-        'White-label reports',
-        'Custom workflows',
-        'SLA guarantee',
-        'On-premise option'
-      ],
-      limitations: [],
-      popular: false,
-      color: 'purple'
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const response = await getMiniSubscription();
+        setRawPlans(response ?? []);
+      } catch (error) {
+        console.error('Failed to load subscription plans', error);
+        showToast('error', 'Failed to load pricing plans');
+      }
+    };
+
+    fetchPlans();
+  }, []);
+
+  const plans = useMemo<NormalizedPlan[]>(() => {
+    if (!rawPlans || rawPlans.length === 0) {
+      return [];
     }
-  ];
+
+    const formatFeatureLabel = (item: SubscriptionFeature) => {
+      const translationKey = `subscription.features.${item.featureKey}`;
+      const translation = t(translationKey);
+      const fallbackLabel = (item.featureKey ?? '').replace(/_/g, ' ').trim();
+      const label = translation !== translationKey ? translation : fallbackLabel;
+      const value = item.featureValue?.toString().trim() ?? '';
+
+      if (!label && value) {
+        return value;
+      }
+
+      if (!label) {
+        return '';
+      }
+
+      return value ? `${label}: ${value}` : label;
+    };
+
+    return rawPlans
+      .filter((plan) => plan?.name?.toLowerCase() !== 'free')
+      .map((plan) => {
+        const basePrice = Number(plan?.price ?? 0);
+        const discountPrice =
+          plan?.discountPrice !== undefined && plan?.discountPrice !== null
+            ? Number(plan.discountPrice)
+            : 0;
+
+        const monthlyPrice = Number(basePrice.toFixed(2));
+        const monthlyOriginalPrice = monthlyPrice;
+
+        const yearlyOriginalPrice = Number((monthlyPrice * 12).toFixed(2));
+        const yearlyDiscountPrice =
+          discountPrice > monthlyPrice
+            ? Number(discountPrice.toFixed(2))
+            : Number((yearlyOriginalPrice * 0.75).toFixed(2));
+
+        const yearlyPrice = yearlyDiscountPrice > 0 ? yearlyDiscountPrice : yearlyOriginalPrice;
+
+        const formattedFeatures = (plan?.features ?? [])
+          .map(formatFeatureLabel)
+          .filter((featureText) => featureText);
+
+        return {
+          id: plan?.id ?? 0,
+          name: plan?.name ?? '',
+          description: plan?.description ?? '',
+          icon: resolveIcon(plan?.icon),
+          price: {
+            monthly: monthlyPrice,
+            yearly: yearlyPrice,
+          },
+          originalPrice: {
+            monthly: monthlyOriginalPrice,
+            yearly: yearlyOriginalPrice,
+          },
+          features: formattedFeatures,
+          limitations: [],
+          popular: Boolean(plan?.isPopular),
+          color: plan?.themeColor ?? 'gray',
+        };
+      });
+  }, [rawPlans, t]);
+
+  useEffect(() => {
+    if (!observerRef.current) {
+      return;
+    }
+
+    const elements = document.querySelectorAll('[data-animate]');
+    elements.forEach((element) => observerRef.current?.observe(element));
+
+    return () => {
+      elements.forEach((element) => observerRef.current?.unobserve(element));
+    };
+  }, [plans]);
+
+  const processCheckout = async (planId: number) => {
+    try {
+      setCheckoutProcessingId(planId);
+      const response = await generateCheckoutAPI({
+        planId,
+        isAnnual: isYearly,
+      });
+
+      if (response?.sessionId) {
+        navigate(ROUTES.CHECKOUT.getPath(response.sessionId));
+        return;
+      }
+
+      showToast('error', 'Unable to initiate checkout session');
+    } catch (error) {
+      console.error('Failed to generate checkout session', error);
+      showToast('error', 'Checkout failed');
+    } finally {
+      setCheckoutProcessingId(null);
+    }
+  };
+
+  const handleSelectPlan = (planId: number) => {
+    if (!planId) {
+      showToast('error', 'Invalid plan selected');
+      return;
+    }
+
+    if (!loggedIn) {
+      showAuthModal('signIn');
+      return;
+    }
+
+    void processCheckout(planId);
+  };
 
   const additionalFeatures = [
     {
@@ -160,20 +267,37 @@ const PlansPage = () => {
     </div>
   );
 
-  const PricingCard = ({ plan, index }) => {
+  const PricingCard = ({
+    plan,
+    index,
+    onSelectPlan,
+    processing,
+  }: {
+    plan: NormalizedPlan;
+    index: number;
+    onSelectPlan: (planId: number) => void;
+    processing: boolean;
+  }) => {
     const isVisible = visibleElements.has(`plan-${plan.id}`);
     const price = isYearly ? plan.price.yearly : plan.price.monthly;
     const originalPrice = isYearly ? plan.originalPrice.yearly : plan.originalPrice.monthly;
-    const savings = originalPrice - price;
-    const savingsPercent = Math.round((savings / originalPrice) * 100);
+    const savings = Math.max(0, originalPrice - price);
+    const savingsPercent = originalPrice > 0 ? Math.round((savings / originalPrice) * 100) : 0;
+
+    const formatCurrency = (value: number) => {
+      const hasDecimals = Math.abs(value % 1) > 0;
+      return value.toLocaleString(undefined, {
+        minimumFractionDigits: hasDecimals ? 2 : 0,
+        maximumFractionDigits: hasDecimals ? 2 : 0,
+      });
+    };
 
     return (
       <div
         id={`plan-${plan.id}`}
         data-animate
-        className={`relative group transition-all duration-500 transform-gpu hover:-translate-y-1 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-        }`}
+        className={`relative group transition-all duration-500 transform-gpu hover:-translate-y-1 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
         style={{ transitionDelay: `${index * 100}ms` }}
       >
         {plan.popular && (
@@ -184,22 +308,20 @@ const PlansPage = () => {
             </div>
           </div>
         )}
-        
-        <div className={`relative h-full bg-gray-900/30 backdrop-blur-sm rounded-2xl p-8 border transition-all duration-300 transform-gpu ${
-          plan.popular 
-            ? 'border-cyan-400/50 hover:border-cyan-400 shadow-2xl shadow-cyan-400/10' 
+
+        <div className={`relative h-full bg-gray-900/30 backdrop-blur-sm rounded-2xl p-8 border transition-all duration-300 transform-gpu ${plan.popular
+            ? 'border-cyan-400/50 hover:border-cyan-400 shadow-2xl shadow-cyan-400/10'
             : 'border-gray-800/50 hover:border-gray-700'
-        } hover:shadow-2xl`}>
-          
+          } hover:shadow-2xl`}>
+
           {/* Background gradient */}
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900/40 to-gray-800/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          
+
           <div className="relative z-10">
             {/* Header */}
             <div className="text-center mb-8">
-              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${
-                plan.popular ? 'bg-cyan-400/10 text-cyan-400' : 'bg-gray-800 text-gray-400'
-              }`}>
+              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${plan.popular ? 'bg-cyan-400/10 text-cyan-400' : 'bg-gray-800 text-gray-400'
+                }`}>
                 {plan.icon}
               </div>
               <h3 className="text-2xl font-light mb-2">{plan.name}</h3>
@@ -209,12 +331,12 @@ const PlansPage = () => {
             {/* Pricing */}
             <div className="text-center mb-8">
               <div className="mb-2">
-                <span className="text-4xl font-light">${price}</span>
+                <span className="text-4xl font-light">${formatCurrency(price)}</span>
                 <span className="text-gray-400 ml-2">/{isYearly ? 'year' : 'month'}</span>
               </div>
-              {savings > 0 && (
+              {savings > 0 && savingsPercent > 0 && (
                 <div className="text-sm text-gray-400">
-                  <span className="line-through">${originalPrice}</span>
+                  <span className="line-through">${formatCurrency(originalPrice)}</span>
                   <span className="text-green-400 ml-2">Save {savingsPercent}%</span>
                 </div>
               )}
@@ -243,12 +365,14 @@ const PlansPage = () => {
             </div>
 
             {/* CTA Button */}
-            <button className={`w-full py-4 rounded-xl font-medium transition-all duration-300 transform-gpu ${
-              plan.popular
-                ? 'bg-gradient-to-r from-cyan-400 to-cyan-600 text-black hover:from-cyan-300 hover:to-cyan-500 hover:scale-105'
-                : 'bg-gray-800 text-white hover:bg-gray-700 hover:scale-105'
-            } flex items-center justify-center gap-2 group`}>
-              Get Started
+            <button
+              onClick={() => onSelectPlan(plan.id)}
+              disabled={processing}
+              className={`w-full py-4 rounded-xl font-medium transition-all duration-300 transform-gpu ${plan.popular
+                  ? 'bg-gradient-to-r from-cyan-400 to-cyan-600 text-black hover:from-cyan-300 hover:to-cyan-500 hover:scale-105'
+                  : 'bg-gray-800 text-white hover:bg-gray-700 hover:scale-105'
+                } flex items-center justify-center gap-2 group`}>
+              {processing ? 'Processing...' : 'Get Started'}
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </button>
           </div>
@@ -272,10 +396,10 @@ const PlansPage = () => {
               </span>
             </h1>
             <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-              Scale your testing capabilities with our flexible pricing options. 
+              Scale your testing capabilities with our flexible pricing options.
               Start small and grow with confidence.
             </p>
-            
+
             {/* Billing Toggle */}
             <div className="flex items-center justify-center gap-4 mb-12">
               <span className={`transition-colors ${!isYearly ? 'text-white' : 'text-gray-400'}`}>
@@ -283,14 +407,12 @@ const PlansPage = () => {
               </span>
               <button
                 onClick={() => setIsYearly(!isYearly)}
-                className={`relative w-14 h-8 rounded-full transition-colors ${
-                  isYearly ? 'bg-cyan-400' : 'bg-gray-700'
-                }`}
+                className={`relative w-14 h-8 rounded-full transition-colors ${isYearly ? 'bg-cyan-400' : 'bg-gray-700'
+                  }`}
               >
                 <div
-                  className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                    isYearly ? 'translate-x-7' : 'translate-x-1'
-                  }`}
+                  className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${isYearly ? 'translate-x-7' : 'translate-x-1'
+                    }`}
                 />
               </button>
               <span className={`transition-colors ${isYearly ? 'text-white' : 'text-gray-400'}`}>
@@ -308,9 +430,19 @@ const PlansPage = () => {
         {/* Pricing Cards */}
         <section className="max-w-7xl mx-auto px-6 mb-20">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {plans.map((plan, index) => (
-              <PricingCard key={plan.id} plan={plan} index={index} />
-            ))}
+            {plans
+              .slice() // tránh mutate mảng gốc
+              .sort((a, b) => a.features.length - b.features.length) // hoặc a.id - b.id, tùy field
+              .map((plan, index) => (
+                <PricingCard
+                  key={plan.id ?? index}
+                  plan={plan}
+                  index={index}
+                  onSelectPlan={handleSelectPlan}
+                  processing={checkoutProcessingId === plan.id}
+                />
+              ))}
+
           </div>
         </section>
 
@@ -429,8 +561,3 @@ const PlansPage = () => {
 };
 
 export default PlansPage;
-
-
-
-
-

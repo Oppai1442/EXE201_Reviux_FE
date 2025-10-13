@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   User, 
   Mail, 
@@ -13,22 +13,37 @@ import {
   MapPin,
   CheckCircle
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+
+import { getAccountDataAPI, saveData } from './services/AccountSettings';
+import type { AccountDataResponse, UserUpdateProfile } from './types';
 
 const AccountSettings = () => {
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const [activeTab, setActiveTab] = useState('profile');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [visibleSections, setVisibleSections] = useState(new Set());
 
-  const [profileData, setProfileData] = useState({
-    fullName: 'johndoe',
-    firstName: 'John',
-    lastName: 'Doe',
-    joinDate: '2024-01-15',
-    email: 'john.doe@example.com',
-    phone: '+1 (555) 123-4567',
-    userCode: 'San Francisco, CA',
-  });
+  const defaultProfileData: AccountDataResponse = useMemo(() => ({
+    fullName: '',
+    firstName: '',
+    lastName: '',
+    joinDate: '',
+    email: '',
+    phone: '',
+    userCode: '',
+  }), []);
+  const [profileData, setProfileData] = useState<AccountDataResponse>(defaultProfileData);
+  const formattedJoinDate = useMemo(() => {
+    if (!profileData.joinDate) return 'Unknown';
+    const date = new Date(profileData.joinDate);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+    });
+  }, [profileData.joinDate]);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -58,14 +73,54 @@ const AccountSettings = () => {
     return () => observer.disconnect();
   }, [activeTab]);
 
-  const handleProfileUpdate = (field, value) => {
+  const loadProfile = useCallback(async () => {
+    try {
+      setIsLoadingProfile(true);
+      const data = await getAccountDataAPI();
+      setProfileData({
+        fullName: data?.fullName ?? defaultProfileData.fullName,
+        firstName: data?.firstName ?? defaultProfileData.firstName,
+        lastName: data?.lastName ?? defaultProfileData.lastName,
+        joinDate: data?.joinDate ?? defaultProfileData.joinDate,
+        email: data?.email ?? defaultProfileData.email,
+        phone: data?.phone ?? defaultProfileData.phone,
+        userCode: data?.userCode ?? defaultProfileData.userCode,
+      });
+    } catch (error) {
+      toast.error('Failed to load account data. Please try again.');
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  }, [defaultProfileData]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  const handleProfileUpdate = (field: keyof AccountDataResponse, value: string) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsSaving(false);
+    try {
+      const payload: UserUpdateProfile = {
+        ...profileData,
+        joinDate: profileData.joinDate,
+      };
+      const isSuccess = await saveData(payload);
+      if (isSuccess) {
+        toast.success('Account information updated successfully.');
+        await loadProfile();
+      } else {
+        toast.error('Account update failed. Please try again.');
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.message || 'Account update failed. Please try again.';
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const tabs = [
@@ -177,10 +232,7 @@ const AccountSettings = () => {
                         </div>
                         <span className="text-sm text-gray-600">•</span>
                         <span className="text-sm text-gray-400 font-light">
-                          Joined {new Date(profileData.joinDate).toLocaleString("en-US", {
-                            year: "numeric",
-                            month: "long",
-                          })}
+                          Joined {formattedJoinDate}
                         </span>
                       </div>
                     </div>
@@ -357,7 +409,7 @@ const AccountSettings = () => {
             >
               <button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isLoadingProfile}
                 className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 
                          disabled:from-gray-700 disabled:to-gray-800 rounded-xl font-light text-white transition-all duration-300 
                          shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 disabled:shadow-none disabled:cursor-not-allowed 

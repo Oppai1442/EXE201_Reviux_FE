@@ -1,8 +1,8 @@
 import { Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { ROUTES } from '@/constant/routes';
 import { CheckoutPage } from '@/modules/checkout';
-import { TransactionManagement } from '@/modules/dashboard';
+import { MyRequest, RequestManagement, TransactionManagement } from '@/modules/dashboard';
 
 // Lazy load components
 const Home = lazy(() => import('@/modules/home'));
@@ -38,7 +38,12 @@ const withSuspense = (Component: React.ComponentType) => (
   </Suspense>
 );
 
-const routes = [
+type AppRoute = 
+  | { path: string; element: ReactNode; authOnly?: boolean; children?: AppRoute[] }
+  | { index: true; element: ReactNode };
+
+
+const routes: AppRoute[] = [
   { path: ROUTES.HOME.path, element: withSuspense(Home) },
   { path: ROUTES.CONTACT.path, element: withSuspense(ContactUs) },
   { path: ROUTES.ABOUT.path, element: withSuspense(AboutPage) },
@@ -62,6 +67,8 @@ const routes = [
       { path: ROUTES.DASHBOARD.child.SUBSCRIPTIONS.path, element: <SubscriptionManagement /> },
       { path: ROUTES.DASHBOARD.child.TRANSACTION.path, element: <TransactionManagement /> },
 
+      { path: ROUTES.DASHBOARD.child.REQUEST_MANAGEMENT.path, element: <RequestManagement />},
+      { path: ROUTES.DASHBOARD.child.MY_REQUESTS.path, element: <MyRequest />},
       //Notification
       // { path: ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.path, element: <NotificationManagement /> },
 

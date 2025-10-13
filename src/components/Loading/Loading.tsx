@@ -9,15 +9,11 @@ interface LoadingProps {
   isVisible: boolean;
   message?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  variant?: 'default' | 'card' | 'inline' | 'popup' | 'fullscreen' | 'spinner' | 'dots' | 'bars' | 'pulse' | 'wave' | 'skeleton' | 'progress' | 'bounce' | 'slide' | 'fade' | 'matrix' | 'neon';
-  position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center';
-  color?: 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'pink' | 'indigo' | 'cyan' | 'orange' | 'gray';
-  speed?: 'slow' | 'normal' | 'fast';
+  variant?: 'default' | 'card' | 'inline' | 'popup' | 'fullscreen' | 'spinner' | 'dots' | 'pulse' | 'wave' | 'progress' | 'minimal';
+  position?: 'center' | 'top-right' | 'bottom-right';
   showPercentage?: boolean;
   percentage?: number;
   customIcon?: React.ComponentType<any>;
-  theme?: 'dark' | 'light' | 'gradient' | 'glassmorphism';
-  pattern?: 'simple' | 'complex' | 'minimal' | 'detailed';
 }
 
 const Loading: React.FC<LoadingProps> = ({ 
@@ -26,132 +22,105 @@ const Loading: React.FC<LoadingProps> = ({
   size = 'md',
   variant = 'default',
   position = 'center',
-  color = 'red',
-  speed = 'normal',
   showPercentage = false,
   percentage = 0,
-  customIcon,
-  theme = 'dark',
-  pattern = 'simple'
+  customIcon
 }) => {
-  const [currentIcon, setCurrentIcon] = useState(0);
-  const [animationPhase, setAnimationPhase] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [particles, setParticles] = useState<Array<{x: number, y: number, delay: number}>>([]);
 
-  const loadingIcons = [
-    Loader2, Loader, RotateCw, RefreshCw, CircleDashed,
-    Clock, Zap, Heart, Star, Sun, Moon, Coffee, Wifi,
-    Download, Upload, Search, Play, Pause, ArrowRight
-  ];
-
-  // Size configurations
   const sizes = {
-    xs: { icon: 'w-3 h-3', text: 'text-xs', container: 'p-2', dot: 'w-1 h-1' },
-    sm: { icon: 'w-4 h-4', text: 'text-xs', container: 'p-3', dot: 'w-1.5 h-1.5' },
-    md: { icon: 'w-5 h-5', text: 'text-sm', container: 'p-4', dot: 'w-2 h-2' },
-    lg: { icon: 'w-6 h-6', text: 'text-base', container: 'p-6', dot: 'w-2.5 h-2.5' },
-    xl: { icon: 'w-8 h-8', text: 'text-lg', container: 'p-8', dot: 'w-3 h-3' }
+    xs: { icon: 'w-3 h-3', text: 'text-xs', container: 'p-3', spinner: 'w-8 h-8' },
+    sm: { icon: 'w-4 h-4', text: 'text-sm', container: 'p-4', spinner: 'w-10 h-10' },
+    md: { icon: 'w-5 h-5', text: 'text-base', container: 'p-6', spinner: 'w-12 h-12' },
+    lg: { icon: 'w-6 h-6', text: 'text-lg', container: 'p-8', spinner: 'w-16 h-16' },
+    xl: { icon: 'w-8 h-8', text: 'text-xl', container: 'p-10', spinner: 'w-20 h-20' }
   };
 
-  // Color configurations
-  const colors = {
-    red: { primary: 'red-500', secondary: 'red-600', accent: 'red-400', bg: 'red-500/25' },
-    blue: { primary: 'blue-500', secondary: 'blue-600', accent: 'blue-400', bg: 'blue-500/25' },
-    green: { primary: 'green-500', secondary: 'green-600', accent: 'green-400', bg: 'green-500/25' },
-    yellow: { primary: 'yellow-500', secondary: 'yellow-600', accent: 'yellow-400', bg: 'yellow-500/25' },
-    purple: { primary: 'purple-500', secondary: 'purple-600', accent: 'purple-400', bg: 'purple-500/25' },
-    pink: { primary: 'pink-500', secondary: 'pink-600', accent: 'pink-400', bg: 'pink-500/25' },
-    indigo: { primary: 'indigo-500', secondary: 'indigo-600', accent: 'indigo-400', bg: 'indigo-500/25' },
-    cyan: { primary: 'cyan-500', secondary: 'cyan-600', accent: 'cyan-400', bg: 'cyan-500/25' },
-    orange: { primary: 'orange-500', secondary: 'orange-600', accent: 'orange-400', bg: 'orange-500/25' },
-    gray: { primary: 'gray-500', secondary: 'gray-600', accent: 'gray-400', bg: 'gray-500/25' }
-  };
-
-  // Speed configurations
-  const speeds = {
-    slow: '3s',
-    normal: '2s',
-    fast: '1s'
-  };
-
-  // Position classes
   const positionClasses = {
-    center: 'fixed inset-0 flex items-center justify-center',
-    'top-left': 'fixed top-4 left-4',
-    'top-right': 'fixed top-4 right-4',
-    'bottom-left': 'fixed bottom-4 left-4',
-    'bottom-right': 'fixed bottom-4 right-4',
-    'top-center': 'fixed top-4 left-1/2 transform -translate-x-1/2',
-    'bottom-center': 'fixed bottom-4 left-1/2 transform -translate-x-1/2'
+    center: 'fixed inset-0 flex items-center justify-center z-50',
+    'top-right': 'fixed top-6 right-6 z-50',
+    'bottom-right': 'fixed bottom-6 right-6 z-50'
   };
 
-  // Theme configurations
-  const themes = {
-    dark: {
-      bg: 'bg-gray-900/95',
-      text: 'text-white',
-      subtext: 'text-gray-400',
-      border: 'border-gray-800',
-      backdrop: 'bg-black/50'
-    },
-    light: {
-      bg: 'bg-white/95',
-      text: 'text-gray-900',
-      subtext: 'text-gray-600',
-      border: 'border-gray-200',
-      backdrop: 'bg-white/50'
-    },
-    gradient: {
-      bg: 'bg-gradient-to-br from-purple-900/95 to-blue-900/95',
-      text: 'text-white',
-      subtext: 'text-purple-200',
-      border: 'border-purple-500/30',
-      backdrop: 'bg-gradient-to-br from-purple-500/20 to-blue-500/20'
-    },
-    glassmorphism: {
-      bg: 'bg-white/10 backdrop-blur-md',
-      text: 'text-white',
-      subtext: 'text-white/70',
-      border: 'border-white/20',
-      backdrop: 'bg-black/20'
-    }
-  };
-
-  // Animation effects
   useEffect(() => {
     if (!isVisible) return;
 
-    const iconInterval = setInterval(() => {
-      setCurrentIcon(prev => (prev + 1) % loadingIcons.length);
-    }, parseInt(speeds[speed]) * 1000);
+    const particleArray = Array.from({ length: 12 }, () => ({
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      delay: Math.random() * 3
+    }));
+    setParticles(particleArray);
 
-    const phaseInterval = setInterval(() => {
-      setAnimationPhase(prev => (prev + 1) % 4);
-    }, 500);
-
-    return () => {
-      clearInterval(iconInterval);
-      clearInterval(phaseInterval);
-    };
-  }, [isVisible, speed, loadingIcons.length]);
+    if (variant === 'progress' && !showPercentage) {
+      const interval = setInterval(() => {
+        setProgress(prev => (prev >= 100 ? 0 : prev + 1));
+      }, 50);
+      return () => clearInterval(interval);
+    }
+  }, [isVisible, variant, showPercentage]);
   
   if (!isVisible) return null;
 
-  const CurrentIcon = customIcon || loadingIcons[currentIcon];
-  const currentTheme = themes[theme];
-  const currentColor = colors[color];
+  const CurrentIcon = customIcon || Loader2;
   const currentSize = sizes[size];
+  const displayPercentage = showPercentage ? percentage : progress;
 
   // Fullscreen variant
   if (variant === 'fullscreen') {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className={`animate-spin rounded-full h-12 w-12 border-b-2 border-${currentColor.primary} mx-auto mb-4`}></div>
-          <p className="text-gray-400">{message}</p>
+      <div className="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-cyan-500/5"></div>
+        
+        {particles.map((particle, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-cyan-400/30 rounded-full"
+            style={{
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+              animation: `float 6s ease-in-out infinite`,
+              animationDelay: `${particle.delay}s`
+            }}
+          />
+        ))}
+
+        <div className="relative text-center">
+          <div className="relative inline-block mb-8">
+            <div className={`${currentSize.spinner} relative`}>
+              <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20"></div>
+              <div className="absolute inset-0 rounded-full border-t-2 border-cyan-400 animate-spin"></div>
+              <div className="absolute inset-0 rounded-full border-2 border-cyan-500/10 animate-ping"></div>
+            </div>
+          </div>
+          
+          <p className="text-gray-300 font-light text-lg mb-2">{message}</p>
+          
           {showPercentage && (
-            <p className={`text-${currentColor.primary} text-sm mt-2`}>{percentage}%</p>
+            <p className="text-cyan-400 text-sm font-light">{percentage}%</p>
           )}
         </div>
+
+        <style>{`
+          @keyframes float {
+            0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.3; }
+            50% { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Minimal variant
+  if (variant === 'minimal') {
+    return (
+      <div className="flex items-center gap-3">
+        <div className={`relative ${currentSize.spinner}`}>
+          <div className="absolute inset-0 rounded-full border border-gray-800"></div>
+          <div className="absolute inset-0 rounded-full border-t border-cyan-400 animate-spin"></div>
+        </div>
+        <span className="text-gray-300 font-light text-sm">{message}</span>
       </div>
     );
   }
@@ -160,11 +129,12 @@ const Loading: React.FC<LoadingProps> = ({
   if (variant === 'spinner') {
     return (
       <div className="flex items-center justify-center gap-3">
-        <div className={`relative ${currentSize.icon}`}>
-          <div className={`absolute inset-0 rounded-full border-2 border-${currentColor.primary}/20 animate-ping`}></div>
-          <div className={`absolute inset-0 rounded-full border-t-2 border-${currentColor.primary} animate-spin`}></div>
+        <div className={`relative ${currentSize.spinner}`}>
+          <div className="absolute inset-0 rounded-full border-2 border-gray-800/50"></div>
+          <div className="absolute inset-0 rounded-full border-t-2 border-cyan-400 animate-spin"></div>
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500/10 to-transparent animate-pulse"></div>
         </div>
-        <span className={`${currentSize.text} ${currentTheme.subtext}`}>{message}</span>
+        <span className="text-gray-300 font-light text-sm">{message}</span>
       </div>
     );
   }
@@ -177,34 +147,12 @@ const Loading: React.FC<LoadingProps> = ({
           {[0, 1, 2].map((i) => (
             <div 
               key={i}
-              className={`${currentSize.dot} bg-${currentColor.primary} rounded-full animate-bounce`}
-              style={{ animationDelay: `${i * 0.2}s` }}
+              className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce"
+              style={{ animationDelay: `${i * 0.15}s` }}
             ></div>
           ))}
         </div>
-        <span className={`${currentSize.text} ${currentTheme.subtext}`}>{message}</span>
-      </div>
-    );
-  }
-
-  // Bars variant
-  if (variant === 'bars') {
-    return (
-      <div className="flex flex-col items-center gap-4">
-        <div className="flex gap-1">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div 
-              key={i}
-              className={`w-1 bg-${currentColor.primary} rounded-full animate-pulse`}
-              style={{ 
-                height: '20px',
-                animationDelay: `${i * 0.1}s`,
-                animationDuration: '1s'
-              }}
-            ></div>
-          ))}
-        </div>
-        <span className={`${currentSize.text} ${currentTheme.subtext}`}>{message}</span>
+        <span className="text-gray-300 font-light text-sm">{message}</span>
       </div>
     );
   }
@@ -213,8 +161,8 @@ const Loading: React.FC<LoadingProps> = ({
   if (variant === 'pulse') {
     return (
       <div className="flex flex-col items-center gap-4">
-        <div className={`${currentSize.icon} bg-${currentColor.primary} rounded-full animate-pulse shadow-lg shadow-${currentColor.bg}`}></div>
-        <span className={`${currentSize.text} ${currentTheme.subtext}`}>{message}</span>
+        <div className={`${currentSize.spinner} bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-full animate-pulse shadow-lg shadow-cyan-500/30`}></div>
+        <span className="text-gray-300 font-light text-sm">{message}</span>
       </div>
     );
   }
@@ -223,32 +171,19 @@ const Loading: React.FC<LoadingProps> = ({
   if (variant === 'wave') {
     return (
       <div className="flex flex-col items-center gap-4">
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           {[0, 1, 2, 3, 4].map((i) => (
             <div 
               key={i}
-              className={`w-2 h-8 bg-${currentColor.primary} rounded-full`}
+              className="w-1 bg-cyan-400 rounded-full transition-all duration-300"
               style={{
-                animation: `wave 1.5s ease-in-out infinite`,
-                animationDelay: `${i * 0.1}s`,
-                transform: `scaleY(${0.4 + (Math.sin((animationPhase + i) * 0.5) * 0.6)})`
+                height: `${20 + Math.sin((progress / 10 + i) * 0.5) * 15}px`,
+                opacity: 0.5 + Math.sin((progress / 10 + i) * 0.5) * 0.5
               }}
             ></div>
           ))}
         </div>
-        <span className={`${currentSize.text} ${currentTheme.subtext}`}>{message}</span>
-      </div>
-    );
-  }
-
-  // Skeleton variant
-  if (variant === 'skeleton') {
-    return (
-      <div className="space-y-3 animate-pulse">
-        <div className={`h-4 bg-${currentColor.primary}/20 rounded w-3/4`}></div>
-        <div className={`h-4 bg-${currentColor.primary}/20 rounded w-1/2`}></div>
-        <div className={`h-4 bg-${currentColor.primary}/20 rounded w-5/6`}></div>
-        <span className={`${currentSize.text} ${currentTheme.subtext} block mt-2`}>{message}</span>
+        <span className="text-gray-300 font-light text-sm">{message}</span>
       </div>
     );
   }
@@ -257,64 +192,18 @@ const Loading: React.FC<LoadingProps> = ({
   if (variant === 'progress') {
     return (
       <div className="w-full max-w-md">
-        <div className="flex justify-between items-center mb-2">
-          <span className={`${currentSize.text} ${currentTheme.text}`}>{message}</span>
-          {showPercentage && <span className={`${currentSize.text} text-${currentColor.primary}`}>{percentage}%</span>}
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-gray-300 font-light text-sm">{message}</span>
+          <span className="text-cyan-400 font-light text-sm">{displayPercentage}%</span>
         </div>
-        <div className={`w-full bg-gray-700 rounded-full h-2`}>
+        <div className="relative w-full h-1.5 bg-gray-800/50 rounded-full overflow-hidden backdrop-blur-sm">
           <div 
-            className={`bg-${currentColor.primary} h-2 rounded-full transition-all duration-300 ease-out`}
-            style={{ width: `${showPercentage ? percentage : 50}%` }}
-          ></div>
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-400 to-cyan-500 rounded-full transition-all duration-300 ease-out shadow-lg shadow-cyan-500/30"
+            style={{ width: `${displayPercentage}%` }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  // Matrix variant
-  if (variant === 'matrix') {
-    return (
-      <div className="flex flex-col items-center gap-4">
-        <div className="grid grid-cols-3 gap-1">
-          {Array.from({ length: 9 }).map((_, i) => (
-            <div 
-              key={i}
-              className={`w-2 h-2 bg-${currentColor.primary} rounded-sm`}
-              style={{
-                opacity: Math.random() > 0.5 ? 1 : 0.3,
-                animation: `blink ${speeds[speed]} infinite`,
-                animationDelay: `${i * 0.1}s`
-              }}
-            ></div>
-          ))}
-        </div>
-        <span className={`${currentSize.text} ${currentTheme.subtext}`}>{message}</span>
-      </div>
-    );
-  }
-
-  // Neon variant
-  if (variant === 'neon') {
-    return (
-      <div className="flex flex-col items-center gap-4">
-        <div className={`relative ${currentSize.icon}`}>
-          <CurrentIcon 
-            className={`${currentSize.icon} text-${currentColor.primary} animate-spin`}
-            style={{
-              filter: `drop-shadow(0 0 10px rgb(var(--${currentColor.primary}))`,
-              textShadow: `0 0 10px rgb(var(--${currentColor.primary})`
-            }}
-          />
-          <div className={`absolute inset-0 ${currentSize.icon} border-2 border-${currentColor.primary} rounded-full animate-ping opacity-75`}></div>
-        </div>
-        <span 
-          className={`${currentSize.text} text-${currentColor.primary} font-bold`}
-          style={{
-            textShadow: `0 0 10px rgb(var(--${currentColor.primary})`
-          }}
-        >
-          {message}
-        </span>
       </div>
     );
   }
@@ -322,27 +211,35 @@ const Loading: React.FC<LoadingProps> = ({
   // Popup variant
   if (variant === 'popup') {
     return (
-      <div className={`${positionClasses[position]} z-50`}>
+      <div className={positionClasses[position]}>
         {position === 'center' && (
-          <div className={`absolute inset-0 ${currentTheme.backdrop} backdrop-blur-sm`}></div>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
         )}
         
-        <div className={`relative ${currentTheme.bg} backdrop-blur-sm ${currentTheme.border} border rounded-2xl ${currentSize.container} shadow-2xl shadow-black/50 min-w-64 max-w-sm`}>
-          <div className="flex flex-col items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-${currentColor.primary} to-${currentColor.secondary} flex items-center justify-center shadow-lg shadow-${currentColor.bg}`}>
-              <CurrentIcon className={`w-6 h-6 ${currentTheme.text} animate-spin`} />
+        <div className="relative bg-gray-900/90 backdrop-blur-md border border-gray-800/50 rounded-2xl shadow-2xl shadow-black/50 min-w-80 max-w-sm overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-transparent pointer-events-none"></div>
+          
+          <div className={`relative ${currentSize.container} flex flex-col items-center gap-6`}>
+            <div className="relative">
+              <div className={`${currentSize.spinner} rounded-full bg-gradient-to-br from-cyan-400/20 to-cyan-600/20 backdrop-blur-sm flex items-center justify-center shadow-lg shadow-cyan-500/20`}>
+                <CurrentIcon className="w-6 h-6 text-cyan-400 animate-spin" />
+              </div>
+              <div className="absolute inset-0 rounded-full border border-cyan-500/30 animate-ping"></div>
             </div>
-            <div className="text-center">
-              <p className={`${currentTheme.text} ${currentSize.text} font-semibold mb-1`}>{message}</p>
+            
+            <div className="text-center space-y-2">
+              <p className="text-white font-light text-base">{message}</p>
+              
               {showPercentage && (
-                <p className={`text-${currentColor.primary} text-xs mt-1`}>{percentage}%</p>
+                <p className="text-cyan-400 text-sm font-light">{percentage}%</p>
               )}
-              <div className="flex items-center justify-center gap-2 mt-2">
+              
+              <div className="flex items-center justify-center gap-1.5 pt-2">
                 {[0, 1, 2].map((i) => (
                   <div 
                     key={i}
-                    className={`w-2 h-2 bg-${currentColor.primary} rounded-full animate-pulse`}
-                    style={{ animationDelay: `${i * 100}ms` }}
+                    className="w-1.5 h-1.5 bg-cyan-400/60 rounded-full animate-pulse"
+                    style={{ animationDelay: `${i * 150}ms` }}
                   ></div>
                 ))}
               </div>
@@ -356,14 +253,22 @@ const Loading: React.FC<LoadingProps> = ({
   // Card variant
   if (variant === 'card') {
     return (
-      <div className={`${currentTheme.bg} backdrop-blur-sm ${currentTheme.border} border rounded-xl ${currentSize.container} flex flex-col items-center justify-center gap-4 min-h-32`}>
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-${currentColor.primary} to-${currentColor.secondary} flex items-center justify-center shadow-lg shadow-${currentColor.bg}`}>
-          <CurrentIcon className={`w-6 h-6 ${currentTheme.text} animate-spin`} />
+      <div className="relative bg-gray-900/80 backdrop-blur-md border border-gray-800/50 rounded-xl overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-transparent pointer-events-none"></div>
+        
+        <div className={`relative ${currentSize.container} flex flex-col items-center justify-center gap-5 min-h-40`}>
+          <div className="relative">
+            <div className={`${currentSize.spinner} rounded-xl bg-gradient-to-br from-cyan-400/20 to-cyan-600/20 backdrop-blur-sm flex items-center justify-center shadow-lg shadow-cyan-500/20`}>
+              <CurrentIcon className="w-6 h-6 text-cyan-400 animate-spin" />
+            </div>
+          </div>
+          
+          <p className="text-gray-300 font-light text-sm text-center">{message}</p>
+          
+          {showPercentage && (
+            <p className="text-cyan-400 text-xs font-light">{percentage}%</p>
+          )}
         </div>
-        <p className={`${currentTheme.subtext} ${currentSize.text} font-medium text-center`}>{message}</p>
-        {showPercentage && (
-          <p className={`text-${currentColor.primary} text-xs`}>{percentage}%</p>
-        )}
       </div>
     );
   }
@@ -371,11 +276,11 @@ const Loading: React.FC<LoadingProps> = ({
   // Inline variant
   if (variant === 'inline') {
     return (
-      <div className="flex items-center gap-3">
-        <CurrentIcon className={`${currentSize.icon} text-${currentColor.primary} animate-spin`} />
-        <span className={`${currentSize.text} ${currentTheme.subtext} font-medium`}>{message}</span>
+      <div className="inline-flex items-center gap-3">
+        <CurrentIcon className={`${currentSize.icon} text-cyan-400 animate-spin`} />
+        <span className="text-gray-300 font-light text-sm">{message}</span>
         {showPercentage && (
-          <span className={`${currentSize.text} text-${currentColor.primary}`}>{percentage}%</span>
+          <span className="text-cyan-400 font-light text-sm">{percentage}%</span>
         )}
       </div>
     );
@@ -383,14 +288,14 @@ const Loading: React.FC<LoadingProps> = ({
 
   // Default variant
   return (
-    <div className="flex items-center justify-center gap-3 py-4">
+    <div className="flex items-center justify-center gap-4 py-6">
       <div className="relative">
-        <div className={`absolute inset-0 rounded-full border-2 border-${currentColor.primary}/20 animate-pulse`}></div>
-        <CurrentIcon className={`${currentSize.icon} text-${currentColor.primary} animate-spin relative z-10`} />
+        <div className={`absolute inset-0 rounded-full border border-cyan-500/20 animate-pulse`}></div>
+        <CurrentIcon className={`${currentSize.icon} text-cyan-400 animate-spin relative z-10`} />
       </div>
-      <span className={`${currentSize.text} ${currentTheme.subtext} font-medium`}>{message}</span>
+      <span className="text-gray-300 font-light text-sm">{message}</span>
       {showPercentage && (
-        <span className={`${currentSize.text} text-${currentColor.primary}`}>{percentage}%</span>
+        <span className="text-cyan-400 font-light text-sm">{percentage}%</span>
       )}
     </div>
   );

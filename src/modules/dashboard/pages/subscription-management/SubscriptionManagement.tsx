@@ -1,75 +1,147 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { ComponentType, InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from 'react';
 import * as Icons from 'lucide-react';
 import { Loading } from '@/components/Loading';
 import { createSubscriptionAPI, deleteSubscriptionAPI, getFeaturesAPI, getSubscriptionsAPI, updateSubscriptionAPI } from './services/subscriptionService';
 import type { BillingPeriod, createSubscriptionRequestDTO, Feature, Subscription, SubscriptionFeature, SubscriptionStatus, updateSubscriptionRequestDTO } from './types';
 import { showToast } from '@/utils';
-import { useTranslation } from "react-i18next";
 import { Save, X, Plus, Sparkles, DollarSign, Clock, Palette, Tag, Edit3, Trash2, Check, Target, Crown, Zap, Star } from 'lucide-react';
 
 
 // Type definitions based on your interface
 const SubscriptionManagement = () => {
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [editingPlan, setEditingPlan] = useState(null);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingPlan, setEditingPlan] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Subscription>({
     id: 0,
     name: '',
     description: '',
     price: '',
     discountPrice: '',
-    billingPeriod: 'MONTHLY',
-    features: [{ featureKey: '', featureValue: '' }],
+    billingPeriod: 'MONTHLY' as BillingPeriod,
+    features: [{ featureKey: '', featureValue: '' }], // Changed from string[] to object[]
     icon: 'target',
     isPopular: false,
-    themeColor: 'cyan',
-    status: 'ACTIVE'
+    themeColor: 'blue',
+    status: 'ACTIVE' as SubscriptionStatus
   });
 
+  const [features, setFeatures] = useState<Feature[]>([]);
+
+  const fetchSubscriptions = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [subscriptions, features] = await Promise.all([
+        getSubscriptionsAPI(),
+        getFeaturesAPI(),
+      ]);
+
+      setSubscriptions(subscriptions);
+      setFeatures(features);
+    } catch (error) {
+      console.error('Failed to fetch subscriptions:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSubscriptions();
+  }, [fetchSubscriptions]);
+
   const iconOptions = [
-    { value: 'target', icon: Target, label: 'Target' },
-    { value: 'crown', icon: Crown, label: 'Crown' },
-    { value: 'zap', icon: Zap, label: 'Zap' },
-    { value: 'star', icon: Star, label: 'Star' }
+    { value: 'target', icon: Icons.Target, label: 'Target' },
+    { value: 'crown', icon: Icons.Crown, label: 'Crown' },
+    { value: 'zap', icon: Icons.Zap, label: 'Zap' },
+    { value: 'star', icon: Icons.Star, label: 'Star' },
+    { value: 'diamond', icon: Icons.Diamond, label: 'Diamond' },
+    { value: 'trophy', icon: Icons.Trophy, label: 'Trophy' },
+    { value: 'award', icon: Icons.Award, label: 'Award' },
+    { value: 'gem', icon: Icons.Gem, label: 'Gem' },
+    { value: 'rocket', icon: Icons.Rocket, label: 'Rocket' },
+    { value: 'shield', icon: Icons.Shield, label: 'Shield' },
+    { value: 'heart', icon: Icons.Heart, label: 'Heart' },
+    { value: 'flame', icon: Icons.Flame, label: 'Flame' },
+    { value: 'lightning', icon: Icons.Bolt, label: 'Lightning' },
+    { value: 'sparkles', icon: Icons.Sparkles, label: 'Sparkles' },
+    { value: 'gift', icon: Icons.Gift, label: 'Gift' },
+    { value: 'medal', icon: Icons.Medal, label: 'Medal' },
+    { value: 'badge', icon: Icons.BadgeCheck, label: 'Badge' },
+    { value: 'thumbs-up', icon: Icons.ThumbsUp, label: 'Thumbs Up' }
   ];
-
   const colorOptions = [
-    { value: 'cyan', label: 'Cyan', class: 'from-cyan-600 to-cyan-700' },
     { value: 'blue', label: 'Blue', class: 'from-blue-600 to-blue-700' },
-    { value: 'purple', label: 'Purple', class: 'from-purple-600 to-purple-700' }
+    { value: 'red', label: 'Red', class: 'from-red-600 to-red-700' },
+    { value: 'green', label: 'Green', class: 'from-green-600 to-green-700' },
+    { value: 'purple', label: 'Purple', class: 'from-purple-600 to-purple-700' },
+    { value: 'orange', label: 'Orange', class: 'from-orange-600 to-orange-700' },
+    { value: 'pink', label: 'Pink', class: 'from-pink-600 to-pink-700' },
+    { value: 'indigo', label: 'Indigo', class: 'from-indigo-600 to-indigo-700' },
+    { value: 'teal', label: 'Teal', class: 'from-teal-600 to-teal-700' },
+    { value: 'cyan', label: 'Cyan', class: 'from-cyan-600 to-cyan-700' },
+    { value: 'yellow', label: 'Yellow', class: 'from-yellow-600 to-yellow-700' },
+    { value: 'emerald', label: 'Emerald', class: 'from-emerald-600 to-emerald-700' },
+    { value: 'slate', label: 'Slate', class: 'from-slate-600 to-slate-700' }
   ];
 
-  const billingPeriodOptions = [
+  const billingPeriodOptions: { value: BillingPeriod; label: string }[] = [
     { value: 'MONTHLY', label: 'Monthly' },
+    { value: 'QUARTERLY', label: 'Quarterly' },
+    { value: 'SEMI_ANNUALLY', label: 'Semi-ANNUALLY' },
     { value: 'ANNUALLY', label: 'Annually' },
+    { value: 'BIENNIALLY', label: 'Biennially' },
+    { value: 'TRIENNIALLY', label: 'Triennially' },
     { value: 'LIFETIME', label: 'Lifetime' }
   ];
 
-  const formatPrice = (price) => {
-    return `$${parseFloat(price).toFixed(2)}`;
+  const formatPrice = (price: string): string => {
+    const numPrice = parseFloat(price);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(numPrice);
   };
 
-  const getIcon = (iconName) => {
-    const iconMap = { target: Target, crown: Crown, zap: Zap, star: Star };
-    return iconMap[iconName] || Target;
+
+  const handleInputChange = (field: keyof typeof formData, value: string | boolean | BillingPeriod | SubscriptionStatus) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const getColorClass = () => 'from-cyan-500 to-cyan-600';
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleFeatureChange = (index, field, value) => {
+  const handleFeatureChange = (index: number, field: 'key' | 'value', value: string) => {
     const newFeatures = [...formData.features];
+
     if (field === 'key') {
+      // Reset value when key changes
       newFeatures[index] = { featureKey: value, featureValue: '' };
     } else {
       newFeatures[index] = { ...newFeatures[index], featureValue: value };
     }
-    setFormData(prev => ({ ...prev, features: newFeatures }));
+
+    setFormData(prev => ({
+      ...prev,
+      features: newFeatures
+    }));
+  };
+
+  const getFeatureDataType = (featureKey: string): 'boolean' | 'number' | null => {
+    if (!features) return null;
+    const feature = features.find(f => f.featureKey === featureKey);
+    return feature?.dataType || null;
+  };
+
+  const getAvailableFeatureKeys = (currentIndex: number): Feature[] => {
+    const usedKeys = formData.features
+      .map((f, idx) => (idx !== currentIndex ? f.featureKey : null))
+      .filter((key): key is string => Boolean(key && key.trim() !== ''));
+
+    return features.filter(feature => !usedKeys.includes(feature.featureKey));
   };
 
   const addFeature = () => {
@@ -79,11 +151,12 @@ const SubscriptionManagement = () => {
     }));
   };
 
-  const removeFeature = (index) => {
+  const removeFeature = (index: number): void => {
     if (formData.features.length > 1) {
+      const newFeatures = formData.features.filter((_, i) => i !== index);
       setFormData(prev => ({
         ...prev,
-        features: prev.features.filter((_, i) => i !== index)
+        features: newFeatures
       }));
     }
   };
@@ -97,33 +170,83 @@ const SubscriptionManagement = () => {
       price: '',
       discountPrice: '',
       billingPeriod: 'MONTHLY',
-      features: [{ featureKey: '', featureValue: '' }],
+      features: [{ featureKey: '', featureValue: '' }], // Changed
       icon: 'target',
       isPopular: false,
-      themeColor: 'cyan',
+      themeColor: 'blue',
       status: 'ACTIVE'
     });
   };
 
-  const startEditing = (plan) => {
+  const startEditing = (plan: Subscription): void => {
     setEditingPlan(plan.id);
-    setFormData({ ...plan });
+    setFormData({
+      id: plan.id,
+      name: plan.name,
+      description: plan.description,
+      price: plan.price,
+      discountPrice: plan.discountPrice || '',
+      billingPeriod: plan.billingPeriod,
+      features: plan.features.map(f => ({ featureKey: f.featureKey, featureValue: f.featureValue })), // Fixed property names
+      icon: plan.icon,
+      isPopular: plan.isPopular,
+      themeColor: plan.themeColor,
+      status: plan.status
+    });
   };
 
-  const savePlan = () => {
-    const cleanFeatures = formData.features.filter(f => f.featureKey.trim() && f.featureValue.trim());
-    
+  const savePlan = async () => {
+    const cleanFeatures = formData.features.filter(f => f.featureKey.trim() !== '' && f.featureValue.trim() !== '');
+
     if (isCreating) {
-      const newPlan = { ...formData, id: Date.now(), features: cleanFeatures };
-      setSubscriptions(prev => [...prev, newPlan]);
-      setIsCreating(false);
-    } else {
-      setSubscriptions(prev => prev.map(plan =>
-        plan.id === editingPlan ? { ...formData, features: cleanFeatures } : plan
-      ));
-      setEditingPlan(null);
+      try {
+        const payload: createSubscriptionRequestDTO = {
+          name: formData.name,
+          description: formData.description,
+          price: formData.price,
+          discountPrice: formData.discountPrice || null,
+          status: formData.status,
+          icon: formData.icon,
+          themeColor: formData.themeColor,
+          isPopular: formData.isPopular,
+          billingPeriod: formData.billingPeriod,
+          features: cleanFeatures,
+        };
+
+        await createSubscriptionAPI(payload);
+        showToast('success', 'Plan created successfully', 'bottom-right');
+        await fetchSubscriptions();
+      } catch (error) {
+        showToast('error', 'Failed to create plan', 'bottom-right');
+      } finally {
+        setIsCreating(false);
+      }
+    } else if (editingPlan) {
+      try {
+        const payload: updateSubscriptionRequestDTO = {
+          subscriptionId: editingPlan,
+          name: formData.name,
+          description: formData.description,
+          price: formData.price,
+          discountPrice: formData.discountPrice || null,
+          durationDays: formData.durationDays || null,
+          status: formData.status,
+          icon: formData.icon,
+          themeColor: formData.themeColor,
+          isPopular: formData.isPopular,
+          billingPeriod: formData.billingPeriod,
+          features: cleanFeatures,
+        };
+
+        await updateSubscriptionAPI(payload);
+        showToast('success', 'Plan updated successfully', 'bottom-right');
+        setEditingPlan(null);
+        await fetchSubscriptions();
+      } catch (error) {
+        showToast('error', 'Failed to update plan', 'bottom-right');
+      }
     }
-    
+
     resetForm();
   };
 
@@ -135,10 +258,10 @@ const SubscriptionManagement = () => {
       price: '',
       discountPrice: '',
       billingPeriod: 'MONTHLY',
-      features: [{ featureKey: '', featureValue: '' }],
+      features: [{ featureKey: '', featureValue: '' }], // Changed
       icon: 'target',
       isPopular: false,
-      themeColor: 'cyan',
+      themeColor: 'blue',
       status: 'ACTIVE'
     });
   };
@@ -149,76 +272,56 @@ const SubscriptionManagement = () => {
     resetForm();
   };
 
-  const deletePlan = (planId) => {
-    setSubscriptions(prev => prev.filter(plan => plan.id !== planId));
+  const deletePlan = async (planId: number): Promise<void> => {
+    try {
+      await deleteSubscriptionAPI(planId);
+      showToast('success', 'Deleted plan successfully', 'bottom-right');
+      await fetchSubscriptions();
+    } catch (error) {
+      showToast('error', 'Failed to delete plan', 'bottom-right');
+    }
   };
 
-  // Demo data
-  useEffect(() => {
-    setSubscriptions([
-      {
-        id: 1,
-        name: 'Starter',
-        description: 'Perfect for individuals',
-        price: '9.99',
-        discountPrice: null,
-        billingPeriod: 'MONTHLY',
-        status: 'ACTIVE',
-        isPopular: false,
-        icon: 'target',
-        themeColor: 'cyan',
-        features: [
-          { featureKey: 'Users', featureValue: '5 users' },
-          { featureKey: 'Storage', featureValue: '10 GB' }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Professional',
-        description: 'For growing teams',
-        price: '29.99',
-        discountPrice: '24.99',
-        billingPeriod: 'MONTHLY',
-        status: 'ACTIVE',
-        isPopular: true,
-        icon: 'crown',
-        themeColor: 'cyan',
-        features: [
-          { featureKey: 'Users', featureValue: '25 users' },
-          { featureKey: 'Storage', featureValue: '100 GB' }
-        ]
-      }
-    ]);
-  }, []);
-
+  const getIcon = (iconName: string): React.ComponentType => {
+    return (Icons as any)[iconName] || Icons.Target;
+  };
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-light mb-4">
-            Subscription <span className="text-cyan-400">Management</span>
-          </h1>
-          <p className="text-gray-400 font-light text-lg">
-            Create and manage subscription plans for your platform
-          </p>
+    <div className="min-h-screen bg-black text-white">
+      <Loading isVisible={loading} message="Loading subscriptions...." variant='popup' />
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Header */}
+        {/* Header */}
+        <div className="space-y-8 pt-8 mb-8">
+          <div className="space-y-4">
+            <h1 className="text-5xl md:text-6xl font-light tracking-tight">
+              <span className="text-white">Subscription </span>
+              <span className="bg-gradient-to-r from-cyan-400 to-cyan-600 bg-clip-text text-transparent">Plans</span>
+            </h1>
+            <p className="text-gray-300 text-lg font-light max-w-3xl">
+              Create and manage subscription plans for your platform
+            </p>
+          </div>
+
+          {/* Add New Plan Button */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={startCreating}
+              disabled={isCreating || !!editingPlan}
+              className="group px-6 py-3 bg-gradient-to-r from-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-cyan-700 
+               rounded-xl font-light text-white transition-all duration-300 shadow-lg shadow-cyan-500/25 
+               hover:shadow-cyan-500/40 flex items-center gap-2 hover:scale-105
+               disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              <Icons.Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+              Add New Plan
+            </button>
+          </div>
         </div>
 
-        <div className="mb-8">
-          <button
-            onClick={startCreating}
-            disabled={isCreating || !!editingPlan}
-            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 
-                     rounded-xl font-light transition-all duration-300 shadow-lg shadow-cyan-500/30
-                     disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:scale-105"
-          >
-            <Plus className="w-5 h-5" />
-            Add New Plan
-          </button>
-        </div>
-
+        {/* Create Form */}
         {isCreating && (
-          <div className="mb-8 bg-gray-900/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6">
-            <h2 className="text-xl font-light mb-6 text-white">Create New Plan</h2>
+          <div className="mb-8 bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-6">
+            <h2 className="text-xl font-semibold mb-6 text-white">Create New Plan</h2>
             <PlanForm
               formData={formData}
               onInputChange={handleInputChange}
@@ -230,57 +333,60 @@ const SubscriptionManagement = () => {
               iconOptions={iconOptions}
               colorOptions={colorOptions}
               billingPeriodOptions={billingPeriodOptions}
-              getAvailableFeatureKeys={() => []}
-              getFeatureDataType={() => null}
+              getAvailableFeatureKeys={getAvailableFeatureKeys}
+              getFeatureDataType={getFeatureDataType}
             />
           </div>
         )}
 
+        {/* Plans Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subscriptions.map((plan) => (
-            <div key={plan.id}>
-              {editingPlan === plan.id ? (
-                <div className="bg-gray-900/40 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6">
-                  <h2 className="text-xl font-light mb-6 text-white">Edit Plan</h2>
-                  <PlanForm
-                    formData={formData}
-                    onInputChange={handleInputChange}
-                    onFeatureChange={handleFeatureChange}
-                    onAddFeature={addFeature}
-                    onRemoveFeature={removeFeature}
-                    onSave={savePlan}
-                    onCancel={cancelEdit}
-                    iconOptions={iconOptions}
-                    colorOptions={colorOptions}
-                    billingPeriodOptions={billingPeriodOptions}
-                    getAvailableFeatureKeys={() => []}
-                    getFeatureDataType={() => null}
+          {subscriptions
+            .slice()
+            .sort((a, b) => a.id - b.id)
+            .map((plan) => (
+              <div key={plan.id} className="relative">
+                {editingPlan === plan.id ? (
+                  <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-6">
+                    <h2 className="text-xl font-semibold mb-6 text-white">Edit Plan</h2>
+                    <PlanForm
+                      formData={formData}
+                      onInputChange={handleInputChange}
+                      onFeatureChange={handleFeatureChange}
+                      onAddFeature={addFeature}
+                      onRemoveFeature={removeFeature}
+                      onSave={savePlan}
+                      onCancel={cancelEdit}
+                      iconOptions={iconOptions}
+                      colorOptions={colorOptions}
+                      billingPeriodOptions={billingPeriodOptions}
+                      getAvailableFeatureKeys={getAvailableFeatureKeys}
+                      getFeatureDataType={getFeatureDataType}
+                    />
+                  </div>
+                ) : (
+                  <PlanCard
+                    plan={plan}
+                    onEdit={() => startEditing(plan)}
+                    onDelete={() => deletePlan(plan.id)}
+                    formatPrice={formatPrice}
+                    getIcon={getIcon}
                   />
-                </div>
-              ) : (
-                <PlanCard
-                  plan={plan}
-                  onEdit={() => startEditing(plan)}
-                  onDelete={() => deletePlan(plan.id)}
-                  formatPrice={formatPrice}
-                  getIcon={getIcon}
-                  getColorClass={getColorClass}
-                />
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            ))}
         </div>
 
-        {subscriptions.length === 0 && !isCreating && (
-          <div className="text-center py-20">
-            <div className="text-gray-400 font-light text-lg mb-6">No subscription plans yet</div>
+        {subscriptions.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-gray-400 text-lg mb-4">No subscription plans created yet</div>
             <button
               onClick={startCreating}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 
-                       rounded-xl font-light transition-all duration-300 shadow-lg shadow-cyan-500/30
-                       flex items-center gap-2 mx-auto hover:scale-105"
+              className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 
+                       rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-red-500/25
+                       flex items-center gap-2 mx-auto"
             >
-              <Plus className="w-5 h-5" />
+              <Icons.Plus className="w-5 h-5" />
               Create Your First Plan
             </button>
           </div>
@@ -298,14 +404,14 @@ interface PlanFormProps {
   onRemoveFeature: (index: number) => void;
   onSave: () => void;
   onCancel: () => void;
-  iconOptions: { value: string; icon: React.ComponentType; label: string }[];
+  iconOptions: { value: string; icon: ComponentType; label: string }[];
   colorOptions: { value: string; label: string; class: string }[];
   billingPeriodOptions: { value: BillingPeriod; label: string }[];
   getAvailableFeatureKeys: (currentIndex: number) => Feature[];
   getFeatureDataType: (featureKey: string) => 'boolean' | 'number' | null;
 }
 
-const PlanForm: React.FC<PlanFormProps> = ({
+const PlanForm = ({
   formData,
   onInputChange,
   onFeatureChange,
@@ -317,11 +423,13 @@ const PlanForm: React.FC<PlanFormProps> = ({
   colorOptions,
   billingPeriodOptions,
   getAvailableFeatureKeys,
-  getFeatureDataType
-}) => {
-  const [focusedField, setFocusedField] = useState(null);
-
-  const InputField = ({ label, icon: Icon, ...props }) => (
+  getFeatureDataType,
+}: PlanFormProps) => {
+  const InputField = ({
+    label,
+    icon: Icon,
+    ...props
+  }: { label: string; icon?: ComponentType<{ className?: string }> } & InputHTMLAttributes<HTMLInputElement>) => (
     <div className="group">
       <label className="block text-sm font-light text-gray-400 mb-2 flex items-center gap-2">
         {Icon && <Icon className="w-4 h-4" />}
@@ -330,8 +438,8 @@ const PlanForm: React.FC<PlanFormProps> = ({
       <div className="relative">
         <input
           {...props}
-          onFocus={(e) => { setFocusedField(props.name); props.onFocus?.(e); }}
-          onBlur={(e) => { setFocusedField(null); props.onBlur?.(e); }}
+          onFocus={(e) => { props.onFocus?.(e); }}
+          onBlur={(e) => { props.onBlur?.(e); }}
           className={`w-full bg-gray-900/20 border border-gray-800/50 rounded-xl px-4 py-3 
             text-white font-light placeholder-gray-500 backdrop-blur-sm
             focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 
@@ -342,7 +450,12 @@ const PlanForm: React.FC<PlanFormProps> = ({
     </div>
   );
 
-  const SelectField = ({ label, icon: Icon, children, ...props }) => (
+  const SelectField = ({
+    label,
+    icon: Icon,
+    children,
+    ...props
+  }: { label: string; icon?: ComponentType<{ className?: string }>; children?: ReactNode } & SelectHTMLAttributes<HTMLSelectElement>) => (
     <div className="group">
       <label className="block text-sm font-light text-gray-400 mb-2 flex items-center gap-2">
         {Icon && <Icon className="w-4 h-4" />}
@@ -360,7 +473,7 @@ const PlanForm: React.FC<PlanFormProps> = ({
     </div>
   );
 
-  const renderFeatureInput = (feature, index) => {
+  const renderFeatureInput = (feature: SubscriptionFeature, index: number) => {
     const dataType = getFeatureDataType(feature.featureKey);
     const baseClass = "flex-1 min-w-0 bg-gray-900/20 border border-gray-800/50 rounded-xl px-4 py-2.5 text-white font-light backdrop-blur-sm focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all duration-300";
 
@@ -603,18 +716,25 @@ const PlanForm: React.FC<PlanFormProps> = ({
   );
 };
 
+interface PlanCardProps {
+  plan: Subscription;
+  onEdit: () => void;
+  onDelete: () => void;
+  formatPrice?: (price: string) => string;
+  getIcon?: (icon: string) => ComponentType;
+}
+
 const PlanCard = ({
   plan,
   onEdit,
   onDelete,
   formatPrice,
   getIcon,
-  getColorClass
-}) => {
+}: PlanCardProps) => {
   const IconComponent = getIcon ? getIcon(plan.icon) : Zap;
 
-  const getBillingPeriodLabel = (period) => {
-    const labels = {
+  const getBillingPeriodLabel = (period: BillingPeriod) => {
+    const labels: Record<BillingPeriod, string> = {
       MONTHLY: 'month',
       QUARTERLY: 'quarter',
       SEMI_ANNUALLY: '6 months',
@@ -626,8 +746,8 @@ const PlanCard = ({
     return labels[period] || period;
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
+  const getStatusColor = (status: SubscriptionStatus) => {
+    const colors: Record<string, string> = {
       ACTIVE: 'bg-cyan-400/20 text-cyan-300 border-cyan-400/30',
       INACTIVE: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30',
       DISABLED: 'bg-red-400/20 text-red-300 border-red-400/30',
@@ -636,8 +756,10 @@ const PlanCard = ({
     return colors[status] || colors.DEFAULT;
   };
 
-  const defaultFormatPrice = (price) => {
-    return `$${parseFloat(price).toFixed(2)}`;
+  const defaultFormatPrice = (price: string) => {
+    const numericPrice = parseFloat(price || '0');
+    if (Number.isNaN(numericPrice)) return '$0.00';
+    return `$${numericPrice.toFixed(2)}`;
   };
 
   const priceFormatter = formatPrice || defaultFormatPrice;

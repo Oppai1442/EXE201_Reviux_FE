@@ -16,7 +16,16 @@ export interface User {
   lastName: string;
   email: string;
   avatarUrl: string;
-  role: string[];
+  role: {
+    id: number,
+    name: string,
+    permission: {
+      id: number,
+      name: string,
+      description: string,
+      active: boolean
+    }[]
+  };
   isLocked: boolean;
   phone: string;
 }

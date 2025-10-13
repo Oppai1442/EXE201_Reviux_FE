@@ -10,23 +10,17 @@ import {
   ClipboardList,
   Ticket,
   FileCog,
+  FlaskConical,
+  Workflow,
 } from 'lucide-react';
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ROUTES } from "@/constant/routes";
 import { useAuth } from "@/context/AuthContext";
-import useMenuAccessControl from "@/hooks/useMenuAccessControl";
 
 const DashboardLayout = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
-
-  const {
-    isUser,
-    isLecturer,
-    hasDept,
-  } = useMenuAccessControl();
-
 
   // Define the type for menu items to include optional visibleIf
   type MenuItem = {
@@ -38,7 +32,7 @@ const DashboardLayout = () => {
     roles?: string[];
     visibleIf?: (user: any) => boolean;
   };
-  
+
   const menuItems: MenuItem[] = [
     {
       path: ROUTES.DASHBOARD.path,
@@ -47,17 +41,29 @@ const DashboardLayout = () => {
       submenu: null,
     },
     {
-      id: "users",
-      label: "Users",
+      id: ROUTES.DASHBOARD.child.USER_MANAGEMENT.path,
+      label: ROUTES.DASHBOARD.child.USER_MANAGEMENT.label,
       icon: Users,
+      submenu: null,
+      roles: ["ROLE_ADMIN"]
+    },
+    {
+      id: 'testing',
+      label: 'Testing',
+      icon: FlaskConical,
       submenu: [
         {
-          id: ROUTES.DASHBOARD.child.USER_MANAGEMENT.path,
-          label: ROUTES.DASHBOARD.child.USER_MANAGEMENT.label,
-          icon: Users,
+          id: ROUTES.DASHBOARD.child.MY_REQUESTS.path,
+          label: ROUTES.DASHBOARD.child.MY_REQUESTS.label,
+          icon: ClipboardList
         },
-      ],
-      roles: ["ROLE_ADMIN"]
+        {
+          id: ROUTES.DASHBOARD.child.REQUEST_MANAGEMENT.path,
+          label: ROUTES.DASHBOARD.child.REQUEST_MANAGEMENT.label,
+          icon: Workflow,
+          roles: ["ROLE_ADMIN"]
+        }
+      ]
     },
     {
       id: ROUTES.DASHBOARD.child.PERMISSION_MANAGEMENT.path,
@@ -74,8 +80,8 @@ const DashboardLayout = () => {
       roles: ["ROLE_ADMIN"]
     },
     {
-      id: ROUTES.DASHBOARD.child.PAYMENT.path,
-      label: ROUTES.DASHBOARD.child.PAYMENT.label,
+      id: ROUTES.DASHBOARD.child.TRANSACTION.path,
+      label: ROUTES.DASHBOARD.child.TRANSACTION.label,
       icon: CreditCard,
       submenu: null,
     },
@@ -119,7 +125,7 @@ const DashboardLayout = () => {
     { id: 4, message: "Có ticket support mới #1234", time: "2 giờ trước", unread: true },
   ];
 
-  /*
+
   const allowedMenuItems = useMemo(() => {
     return menuItems
       .map(item => {
@@ -138,7 +144,7 @@ const DashboardLayout = () => {
             };
           }
 
-          if (!item.roles || item.roles.includes(user.role.name)) {
+          if (!item.roles || (user && item.roles.includes(user.role.name))) {
             return { ...item, submenu: [] };
           }
 
@@ -149,15 +155,11 @@ const DashboardLayout = () => {
 
         return null;
       })
-      .filter(Boolean);
-  }, [user, hasDept]);
+      .filter(Boolean) as MenuItem[];
+  }, [user]);
 
 
-
-
-  */
-
-  const allowedMenuItems = menuItems;
+  // const allowedMenuItems = menuItems;
 
   return (
     <div className="min-h-screen flex bg-black text-white">

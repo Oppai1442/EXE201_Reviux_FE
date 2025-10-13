@@ -29,10 +29,15 @@ export const ROUTES = {
             USER_MANAGEMENT: { path: 'user-list', label: 'User List' },
             PERMISSION_MANAGEMENT: { path: 'permissions', label: 'Permission Management' },
             SUBSCRIPTIONS: { path: 'subscriptions', label: 'Subscriptions' },
-            PAYMENT: { path: 'payment', label: 'Payment' },
+            TRANSACTION: { path: 'transaction', label: 'Payment' },
+
+            //Testing request
+            REQUEST_MANAGEMENT: {path: 'requests', label: 'Request Management'},
+            MY_REQUESTS: {path: 'my-requests',label: 'My Testing Requests'},
+
 
             // Notification
-            NOTIFICATION_MANAGEMENT: { path: 'notification/notification-management', label: 'Notification Management'},
+            NOTIFICATION_MANAGEMENT: { path: 'notification/notification-management', label: 'Notification Management' },
 
             // Ticket
             TICKET_MANAGEMENT: { path: 'ticket/ticket-management', label: 'Ticket Management' },
