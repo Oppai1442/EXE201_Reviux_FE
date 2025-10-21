@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Filter,
@@ -18,11 +19,13 @@ import {
   RefreshCw,
   Loader2,
   Plus,
+  Crown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Loading } from "@/components/Loading";
+import { ROUTES } from "@/constant/routes";
 import QATestingForm from "./components/QATestingForm";
 import {
   getBugReportsAPI,
@@ -34,6 +37,10 @@ import {
   type TestingRequestDetails,
   type TestingUpdateInfo,
 } from "./services/testingRequestService";
+import {
+  getCurrentUserSubscriptionsAPI,
+  type UserSubscriptionRecord,
+} from "./services/subscriptionService";
 
 type NormalizedStatus = "pending" | "in-progress" | "completed" | "failed";
 type RequestPriority = "urgent" | "high" | "medium" | "low";
@@ -179,6 +186,63 @@ const toTimestamp = (value?: string | null) => {
   }
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const subscriptionTimestamp = (record?: UserSubscriptionRecord | null) => {
+  if (!record) {
+    return 0;
+  }
+  return toTimestamp(record.endDate ?? record.startDate ?? null);
+};
+
+const isSubscriptionRecordActive = (record: UserSubscriptionRecord | null) => {
+  if (!record) {
+    return false;
+  }
+  const status = record.status?.toLowerCase();
+  if (status && status !== "active") {
+    return false;
+  }
+  if (record.endDate) {
+    const end = toTimestamp(record.endDate);
+    if (end === 0 || end <= Date.now()) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const selectActiveSubscription = (records: UserSubscriptionRecord[]): UserSubscriptionRecord | null => {
+  const activeRecords = records.filter((record) => isSubscriptionRecordActive(record));
+  if (activeRecords.length === 0) {
+    return null;
+  }
+
+  return activeRecords.reduce<UserSubscriptionRecord | null>((latest, current) => {
+    if (!current) {
+      return latest;
+    }
+    if (!latest) {
+      return current;
+    }
+    return subscriptionTimestamp(current) >= subscriptionTimestamp(latest) ? current : latest;
+  }, null);
+};
+
+const selectLatestSubscription = (records: UserSubscriptionRecord[]): UserSubscriptionRecord | null => {
+  if (!records || records.length === 0) {
+    return null;
+  }
+
+  return records.reduce<UserSubscriptionRecord | null>((latest, current) => {
+    if (!current) {
+      return latest;
+    }
+    if (!latest) {
+      return current;
+    }
+    return subscriptionTimestamp(current) >= subscriptionTimestamp(latest) ? current : latest;
+  }, null);
 };
 
 const formatRequestId = (id: number) => `TR-${id.toString().padStart(4, "0")}`;
@@ -989,6 +1053,7 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({ request, on
 
 const MyRequestsPage: React.FC = () => {
   const { user, loading: authLoading, showAuthModal } = useAuth();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -1001,6 +1066,15 @@ const MyRequestsPage: React.FC = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [userSubscriptions, setUserSubscriptions] = useState<UserSubscriptionRecord[]>([]);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+
+  const activeSubscription = selectActiveSubscription(userSubscriptions);
+  const latestSubscription = selectLatestSubscription(userSubscriptions);
+  const subscriptionForDisplay = activeSubscription ?? latestSubscription;
+  const hasActiveSubscription = Boolean(activeSubscription);
+  const subscriptionExpired = subscriptionForDisplay != null && !isSubscriptionRecordActive(subscriptionForDisplay);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -1011,7 +1085,44 @@ const MyRequestsPage: React.FC = () => {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
+  const fetchUserSubscription = useCallback(async () => {
+    if (!user) {
+      setUserSubscriptions([]);
+      setSubscriptionError(null);
+      setSubscriptionLoading(false);
+      return;
+    }
+
+    setSubscriptionLoading(true);
+    setSubscriptionError(null);
+
+    try {
+      const records = await getCurrentUserSubscriptionsAPI();
+      setUserSubscriptions(records ?? []);
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        setUserSubscriptions([]);
+        setSubscriptionError(null);
+      } else {
+        console.error("Failed to verify subscription", error);
+        toast.error("Unable to verify your subscription. Please try again later.");
+        setSubscriptionError("Unable to verify your subscription right now.");
+        setUserSubscriptions([]);
+      }
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }, [user]);
+
   const ownerId = user?.id ?? null;
+
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+    fetchUserSubscription();
+  }, [authLoading, fetchUserSubscription]);
 
   const fetchRequests = useCallback(
     async (variant: "initial" | "refresh" = "initial") => {
@@ -1069,16 +1180,26 @@ const MyRequestsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (authLoading) {
+    if (authLoading || subscriptionLoading) {
       return;
     }
+
     if (!user) {
       setIsLoading(false);
       setRequests([]);
       return;
     }
+
+    if (!hasActiveSubscription) {
+      setIsLoading(false);
+      setRequests([]);
+      setSelectedRequest(null);
+      setShowCreateForm(false);
+      return;
+    }
+
     fetchRequests("initial");
-  }, [authLoading, user, fetchRequests]);
+  }, [authLoading, subscriptionLoading, user, hasActiveSubscription, fetchRequests]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1185,9 +1306,10 @@ const MyRequestsPage: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    if (!isRefreshing) {
-      fetchRequests("refresh");
+    if (!hasActiveSubscription || subscriptionLoading || isRefreshing) {
+      return;
     }
+    fetchRequests("refresh");
   };
 
   const handleOpenCreateForm = () => {
@@ -1206,7 +1328,7 @@ const MyRequestsPage: React.FC = () => {
     });
   };
 
-  if (authLoading || isLoading) {
+  if (authLoading || subscriptionLoading || (hasActiveSubscription && isLoading)) {
     return <Loading isVisible variant="fullscreen" message="Loading your testing requests..." />;
   }
 
@@ -1224,6 +1346,56 @@ const MyRequestsPage: React.FC = () => {
             <User className="h-4 w-4" />
             Sign in
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasActiveSubscription) {
+    const planName =
+      subscriptionForDisplay?.subscription?.name ??
+      subscriptionForDisplay?.customName ??
+      "subscription plan";
+    const expiryLabelRaw = subscriptionForDisplay?.endDate
+      ? formatDateTime(subscriptionForDisplay.endDate)
+      : null;
+    const expiryLabel = expiryLabelRaw && expiryLabelRaw !== "N/A" ? expiryLabelRaw : null;
+
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center bg-gray-950 px-4 text-white">
+        <div className="w-full max-w-md rounded-2xl border border-gray-800/60 bg-gray-900/70 p-6 text-center shadow-lg shadow-cyan-500/10">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/25 to-cyan-400/15 text-cyan-300">
+            <Crown className="h-6 w-6" />
+          </div>
+          <h2 className="mt-4 text-xl font-light">Subscription Required</h2>
+          <p className="mt-3 text-sm text-gray-400">
+            {subscriptionForDisplay
+              ? subscriptionExpired && expiryLabel
+                ? `Your ${planName} expired on ${expiryLabel}.`
+                : `We couldn't confirm an active status for your ${planName}.`
+              : "An active subscription plan is required to submit and manage testing requests."}
+          </p>
+          {subscriptionError ? (
+            <p className="mt-3 text-xs text-rose-400">{subscriptionError}</p>
+          ) : null}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.PRICING.path)}
+              className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-5 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105"
+            >
+              Explore Plans
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void fetchUserSubscription();
+              }}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-700 bg-gray-900 px-5 py-2 text-sm text-gray-300 transition-colors duration-200 hover:border-cyan-500/40 hover:text-cyan-200"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     );
