@@ -10,7 +10,7 @@ export { default as TransactionManagement } from './pages/transaction-management
 
 //request management
 export { default as MyRequest } from './pages/testing-request/MyRequests';
-export { default as RequestManagement } from './pages/testing-request/RequestManagement';;
+export { default as RequestManagement } from './pages/testing-request/RequestManagement';
 
 //settings
 export { default as AccountSettings } from './pages/settings/AccountSettings';

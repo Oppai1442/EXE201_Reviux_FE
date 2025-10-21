@@ -19,6 +19,10 @@ interface AuthProps {
 
 const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
   const popupRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
+  const usernameInputRef = useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const { authenticate } = useAuth();
   const { t } = useTranslation();
 
@@ -58,24 +62,45 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setIsHandling(true);
 
-    if (mode === "signUp" && !validateEmail(email)) {
-      setEmailError("Invalid email format");
-      setIsHandling(false);
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedUsername) {
+      showToast("error", "Username is required");
+      usernameInputRef.current?.focus();
       return;
-    } else {
-      setEmailError("");
     }
 
+    if (!trimmedPassword) {
+      showToast("error", "Password is required");
+      passwordInputRef.current?.focus();
+      return;
+    }
+
+    if (mode === "signUp" && !validateEmail(trimmedEmail)) {
+      setEmailError("Invalid email format");
+      emailInputRef.current?.focus();
+      return;
+    }
+
+    setEmailError("");
+    setUsername(trimmedUsername);
+    setPassword(trimmedPassword);
+    if (mode === "signUp") {
+      setEmail(trimmedEmail);
+    }
+
+    setIsHandling(true);
 
     try {
       const response = isSignIn()
-        ? await signIn({ username, password })
+        ? await signIn({ username: trimmedUsername, password: trimmedPassword })
         : await signUp({
-          "email": email,
-          "username": username,
-          "password": password
+          "email": trimmedEmail,
+          "username": trimmedUsername,
+          "password": trimmedPassword
         });
 
       if (response) {
@@ -89,6 +114,20 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
       handleAuthError(error);
     } finally {
       setIsHandling(false);
+    }
+  };
+
+  const handleUsernameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      passwordInputRef.current?.focus();
+    }
+  };
+
+  const handlePasswordKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      formRef.current?.requestSubmit();
     }
   };
 
@@ -138,7 +177,7 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
             )}
           </h2>
 
-          <div className="space-y-4" onSubmit={handleSubmit}>
+          <form ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
             {!isSignIn() && (
               <div className="group">
                 <input
@@ -148,8 +187,12 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
                   value={email}
                   autoComplete="email"
                   onChange={(e) => setEmail(e.target.value)}
+                  ref={emailInputRef}
                   required
                 />
+                {emailError && (
+                  <p className="text-red-400 text-sm mt-2 font-light">{emailError}</p>
+                )}
               </div>
             )}
 
@@ -161,11 +204,10 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
                 value={username}
                 autoComplete="username"
                 onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={handleUsernameKeyDown}
+                ref={usernameInputRef}
                 required
               />
-              {emailError && (
-                <p className="text-red-400 text-sm mt-2 font-light">{emailError}</p>
-              )}
             </div>
 
             <div className="relative group">
@@ -176,6 +218,8 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
                 value={password}
                 autoComplete="current-password"
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handlePasswordKeyDown}
+                ref={passwordInputRef}
                 required
               />
               <button
@@ -217,7 +261,6 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
             <button
               type="submit"
               disabled={isLoading}
-              onClick={handleSubmit}
               className="w-full mt-6 py-4 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-2xl font-light text-lg hover:from-cyan-400 hover:to-cyan-500 hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSignIn() ? 'Sign In' : 'Sign Up'}
@@ -254,7 +297,7 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
                 </svg>
               </button>
             </div>
-          </div>
+          </form>
 
           <p className="text-center mt-8 text-gray-400 font-light">
             {isSignIn() ? (

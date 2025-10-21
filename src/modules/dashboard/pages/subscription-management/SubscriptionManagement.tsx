@@ -6,6 +6,22 @@ import { createSubscriptionAPI, deleteSubscriptionAPI, getFeaturesAPI, getSubscr
 import type { BillingPeriod, createSubscriptionRequestDTO, Feature, Subscription, SubscriptionFeature, SubscriptionStatus, updateSubscriptionRequestDTO } from './types';
 import { showToast } from '@/utils';
 import { Save, X, Plus, Sparkles, DollarSign, Clock, Palette, Tag, Edit3, Trash2, Check, Target, Crown, Zap, Star } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+
+const toDefaultFeatureLabel = (key: string): string => {
+  if (!key) return '';
+
+  return key
+    .split('_')
+    .map((segment) => {
+      if (segment.length <= 3 && segment === segment.toUpperCase()) {
+        return segment;
+      }
+
+      return segment.charAt(0) + segment.slice(1).toLowerCase();
+    })
+    .join(' ');
+};
 
 
 // Type definitions based on your interface
@@ -29,6 +45,17 @@ const SubscriptionManagement = () => {
   });
 
   const [features, setFeatures] = useState<Feature[]>([]);
+  const { t } = useTranslation();
+
+  const getFeatureLabel = useCallback(
+    (featureKey: string) => {
+      if (!featureKey) return '';
+
+      const defaultLabel = toDefaultFeatureLabel(featureKey);
+      return t(`subscription.features.${featureKey}`, { defaultValue: defaultLabel });
+    },
+    [t]
+  );
 
   const fetchSubscriptions = useCallback(async () => {
     try {
@@ -335,6 +362,7 @@ const SubscriptionManagement = () => {
               billingPeriodOptions={billingPeriodOptions}
               getAvailableFeatureKeys={getAvailableFeatureKeys}
               getFeatureDataType={getFeatureDataType}
+              getFeatureLabel={getFeatureLabel}
             />
           </div>
         )}
@@ -362,6 +390,7 @@ const SubscriptionManagement = () => {
                       billingPeriodOptions={billingPeriodOptions}
                       getAvailableFeatureKeys={getAvailableFeatureKeys}
                       getFeatureDataType={getFeatureDataType}
+                      getFeatureLabel={getFeatureLabel}
                     />
                   </div>
                 ) : (
@@ -371,6 +400,7 @@ const SubscriptionManagement = () => {
                     onDelete={() => deletePlan(plan.id)}
                     formatPrice={formatPrice}
                     getIcon={getIcon}
+                    getFeatureLabel={getFeatureLabel}
                   />
                 )}
               </div>
@@ -409,6 +439,7 @@ interface PlanFormProps {
   billingPeriodOptions: { value: BillingPeriod; label: string }[];
   getAvailableFeatureKeys: (currentIndex: number) => Feature[];
   getFeatureDataType: (featureKey: string) => 'boolean' | 'number' | null;
+  getFeatureLabel: (featureKey: string) => string;
 }
 
 const PlanForm = ({
@@ -424,6 +455,7 @@ const PlanForm = ({
   billingPeriodOptions,
   getAvailableFeatureKeys,
   getFeatureDataType,
+  getFeatureLabel,
 }: PlanFormProps) => {
   const InputField = ({
     label,
@@ -668,7 +700,7 @@ const PlanForm = ({
                 <option value="">Select feature key</option>
                 {getAvailableFeatureKeys(index).map(availableFeature => (
                   <option key={availableFeature.featureKey} value={availableFeature.featureKey}>
-                    {availableFeature.featureKey}
+                    {getFeatureLabel(availableFeature.featureKey)}
                   </option>
                 ))}
               </select>
@@ -722,6 +754,7 @@ interface PlanCardProps {
   onDelete: () => void;
   formatPrice?: (price: string) => string;
   getIcon?: (icon: string) => ComponentType;
+  getFeatureLabel?: (featureKey: string) => string;
 }
 
 const PlanCard = ({
@@ -730,6 +763,7 @@ const PlanCard = ({
   onDelete,
   formatPrice,
   getIcon,
+  getFeatureLabel,
 }: PlanCardProps) => {
   const IconComponent = getIcon ? getIcon(plan.icon) : Zap;
 
@@ -842,6 +876,11 @@ const PlanCard = ({
         <div className="space-y-3 mb-8">
           {plan.features.map((feature, index) => {
             const isEnabled = feature.featureValue !== "false";
+            const featureLabel = feature.featureKey
+              ? (getFeatureLabel
+                  ? getFeatureLabel(feature.featureKey)
+                  : toDefaultFeatureLabel(feature.featureKey))
+              : '';
             return (
               <div key={feature.featureKey || index} className="flex items-start gap-3 group/feature">
                 <div className={`p-1 rounded-lg ${isEnabled ? 'bg-cyan-400/10' : 'bg-gray-800/50'} mt-0.5 flex-shrink-0`}>
@@ -853,7 +892,7 @@ const PlanCard = ({
                 </div>
                 <div className={`flex-1 text-sm leading-relaxed ${isEnabled ? 'text-gray-300' : 'text-gray-500/70'}`}>
                   <div className={`font-light mb-0.5 ${isEnabled ? 'text-white' : 'text-gray-400/60'}`}>
-                    {feature.featureKey}
+                    {featureLabel || feature.featureKey}
                   </div>
                   {isEnabled && feature.featureValue !== "true" && (
                     <div className="text-gray-400 font-light text-xs">

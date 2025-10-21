@@ -17,11 +17,13 @@ import {
   FileText,
   RefreshCw,
   Loader2,
+  Plus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Loading } from "@/components/Loading";
+import QATestingForm from "./components/QATestingForm";
 import {
   getBugReportsAPI,
   getTestingRequestDetailsAPI,
@@ -61,6 +63,11 @@ interface RequestItem {
   assignedTester: string;
   customerName: string;
   fileUrl: string | null;
+  referenceUrl: string | null;
+  testingTypes: string[];
+  desiredDeadline?: string | null;
+  attachmentDownloadUrl?: string | null;
+  attachmentFileName?: string | null;
   updates: TestingUpdateInfo[];
   logs: TestLogInfo[];
   bugReports: BugReport[];
@@ -362,6 +369,8 @@ const getSeverityMeta = (severity?: string | null) => {
 
 const mapDetailToItem = (detail: TestingRequestDetails, reports: BugReport[]): RequestItem => {
   const normalizedStatus = normalizeStatus(detail.status);
+  const desiredDeadline = detail.desiredDeadline ?? null;
+  const computedDeadline = desiredDeadline ?? computeDeadline(detail, normalizedStatus.status);
   return {
     id: detail.id,
     code: formatRequestId(detail.id),
@@ -375,10 +384,15 @@ const mapDetailToItem = (detail: TestingRequestDetails, reports: BugReport[]): R
     productTypeRaw: detail.productType?.toUpperCase() ?? "UNKNOWN",
     createdAt: detail.createdAt ?? "",
     updatedAt: detail.updatedAt ?? "",
-    deadline: computeDeadline(detail, normalizedStatus.status),
+    deadline: computedDeadline,
+    desiredDeadline,
     assignedTester: deriveAssignedTester(detail, reports),
     customerName: buildDisplayName(detail.customer),
     fileUrl: detail.fileUrl ?? null,
+    referenceUrl: detail.referenceUrl ?? detail.fileUrl ?? null,
+    testingTypes: detail.testingTypes ?? [],
+    attachmentDownloadUrl: detail.attachmentDownloadUrl ?? null,
+    attachmentFileName: detail.attachmentFileName ?? null,
     updates: detail.updates ?? [],
     logs: detail.logs ?? [],
     bugReports: reports,
@@ -652,8 +666,8 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
             key={page}
             onClick={() => onPageChange(page)}
             className={`rounded-lg px-3 py-2 text-sm transition-colors duration-200 ${page === currentPage
-                ? "bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20"
-                : "border border-gray-800/60 bg-gray-900/60 text-white hover:border-cyan-500/40 hover:text-cyan-200"
+              ? "bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20"
+              : "border border-gray-800/60 bg-gray-900/60 text-white hover:border-cyan-500/40 hover:text-cyan-200"
               }`}
           >
             {page}
@@ -704,197 +718,268 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({ request, on
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur">
-      <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-3xl border border-gray-800/70 bg-gray-950/95 p-6 shadow-2xl shadow-cyan-500/20">
+      <div className="relative h-full w-full max-w-[95vw] overflow-hidden rounded-3xl border border-gray-800/70 bg-gray-950/95 shadow-2xl shadow-cyan-500/20">
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-6 top-6 text-gray-400 transition-colors duration-200 hover:text-white"
+          className="absolute right-6 top-6 z-10 text-gray-400 transition-colors duration-200 hover:text-white"
         >
           <XCircle className="h-6 w-6" />
         </button>
 
-        <div className="space-y-6 overflow-y-auto pr-2">
-          <div>
-            <div className="text-xs text-cyan-400/80">{request.code}</div>
-            <h2 className="mt-2 text-2xl font-light text-white">{request.title}</h2>
-            <p className="mt-3 text-sm font-light text-gray-300">
-              {request.description || "No description provided for this request."}
-            </p>
-          </div>
+        <div className="flex h-full gap-6 p-6">
+          {/* Left Column - Main Info */}
+          <div className="flex w-2/5 flex-col gap-6 overflow-y-auto pr-2">
+            <div>
+              <div className="text-xs text-cyan-400/80">{request.code}</div>
+              <h2 className="mt-2 text-2xl font-light text-white">{request.title}</h2>
+              <p className="mt-3 text-sm font-light text-gray-300">
+                {request.description || "No description provided for this request."}
+              </p>
+            </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
-              <div className="mt-2 flex items-center gap-2">
-                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPillClasses[request.status]}`}>
-                  {getStatusIcon(request.status)}
-                  {humanizeStatus(request.rawStatus)}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
+                <div className="mt-2">
+                  <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPillClasses[request.status]}`}>
+                    {getStatusIcon(request.status)}
+                    {humanizeStatus(request.rawStatus)}
+                  </span>
+                  <div className="mt-1 text-xs text-gray-400">Updated {formatDateTime(request.updatedAt)}</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Priority</div>
+                <span className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs ${priorityClasses[request.priority]}`}>
+                  {priorityLabels[request.priority]}
                 </span>
-                <span className="text-xs text-gray-400">Updated {formatDateTime(request.updatedAt)}</span>
+              </div>
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Assigned tester</div>
+                <div className="mt-2 text-sm text-gray-200">{request.assignedTester}</div>
+              </div>
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Customer</div>
+                <div className="mt-2 text-sm text-gray-200">{request.customerName}</div>
+              </div>
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Created</div>
+                <div className="mt-1 text-sm text-gray-200">{formatDateTime(request.createdAt)}</div>
+              </div>
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Target deadline</div>
+                <div className="mt-1 text-sm text-gray-200">{formatDateTime(request.deadline)}</div>
+              </div>
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Product type</div>
+                <div className="mt-1 text-sm text-gray-200">{request.productType}</div>
+              </div>
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Reference file</div>
+                {request.referenceUrl ? (
+                  <a
+                    href={request.referenceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-100"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Open attachment
+                  </a>
+                ) : (
+                  <div className="mt-2 text-sm text-gray-400">No file attached.</div>
+                )}
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Priority</div>
-              <span className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs ${priorityClasses[request.priority]}`}>
-                {priorityLabels[request.priority]}
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Assigned tester</div>
-              <div className="mt-2 text-sm text-gray-200">{request.assignedTester}</div>
-            </div>
-
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Customer</div>
-              <div className="mt-2 text-sm text-gray-200">{request.customerName}</div>
-            </div>
-
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Created</div>
-              <div className="mt-1 text-sm text-gray-200">{formatDateTime(request.createdAt)}</div>
-            </div>
-
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Target deadline</div>
-              <div className="mt-1 text-sm text-gray-200">{formatDateTime(request.deadline)}</div>
-            </div>
-
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Product type</div>
-              <div className="mt-1 text-sm text-gray-200">{request.productType}</div>
-            </div>
-
-            <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">Reference file</div>
-              {request.fileUrl ? (
-                <a
-                  href={request.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-100"
-                >
-                  <FileText className="h-4 w-4" />
-                  Open attachment
-                </a>
-              ) : (
-                <div className="mt-2 text-sm text-gray-400">No file attached.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-light text-white">Latest updates</h3>
-                <p className="text-xs text-gray-400">
-                  {request.updates.length} update{request.updates.length === 1 ? "" : "s"} recorded
-                </p>
-              </div>
-            </div>
-
-            {request.updates.length === 0 && (
-              <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4 text-sm text-gray-400">
-                No updates recorded for this request.
-              </div>
-            )}
-
-            <div className="space-y-3">
-              {request.updates.map((update) => {
-                const normalized = normalizeStatus(update.status);
-                return (
-                  <div key={update.id} className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm text-white">{update.updateNote || "No note provided."}</div>
-                        <div className="mt-1 text-xs text-gray-400">
-                          {buildDisplayName(update.tester)} • {formatDateTime(update.createdAt)}
-                        </div>
-                      </div>
-                      <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPillClasses[normalized.status]}`}>
-                        {getStatusIcon(normalized.status)}
-                        {humanizeStatus(update.status)}
+            {(request.testingTypes.length > 0 ||
+              request.referenceUrl ||
+              request.attachmentDownloadUrl ||
+              request.desiredDeadline) && (
+                <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-sm font-light text-white">Request scope & assets</h3>
+                    {request.desiredDeadline && (
+                      <span className="text-xs text-gray-400">
+                        Requested deadline: {formatDateTime(request.desiredDeadline)}
                       </span>
-                    </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-light text-white">Recent test logs</h3>
-                <p className="text-xs text-gray-400">Showing up to 8 latest entries</p>
-              </div>
-              <span className="text-xs text-gray-500">{request.logs.length} total</span>
-            </div>
-
-            {request.logs.length === 0 ? (
-              <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4 text-sm text-gray-400">
-                No logs recorded yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {request.logs.slice(0, 8).map((log) => (
-                  <div key={log.id} className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span className="uppercase tracking-wide text-white/70">{log.logLevel}</span>
-                      <span>{formatDateTime(log.createdAt)}</span>
-                    </div>
-                    <p className="mt-2 text-sm text-gray-200">{log.logMessage}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-light text-white">Bug reports</h3>
-                <p className="text-xs text-gray-400">Linked issues and conversations</p>
-              </div>
-              <span className="text-xs text-gray-500">{request.bugReports.length} total</span>
-            </div>
-
-            {request.bugReports.length === 0 ? (
-              <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4 text-sm text-gray-400">
-                No bug reports have been submitted for this request yet.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {request.bugReports.map((bug) => {
-                  const severityMeta = getSeverityMeta(bug.severity);
-                  return (
-                    <div key={bug.id} className="rounded-2xl border border-gray-800/60 bg-gray-900/40 p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm text-white">{bug.title}</div>
-                          <div className="text-xs text-gray-500">{formatDateTime(bug.createdAt)}</div>
+                  <div className="space-y-4 text-sm text-gray-300">
+                    {request.testingTypes.length > 0 && (
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-gray-500">Testing types</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {request.testingTypes.map((type) => (
+                            <span
+                              key={type}
+                              className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-100"
+                            >
+                              {type}
+                            </span>
+                          ))}
                         </div>
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs uppercase tracking-wide ${severityMeta.badgeClass}`}>
-                          {severityMeta.label}
+                      </div>
+                    )}
+                    {request.referenceUrl && (
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-gray-500">Reference link</div>
+                        <a
+                          href={request.referenceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-cyan-300 transition-colors duration-200 hover:text-cyan-100"
+                        >
+                          Open
+                        </a>
+                      </div>
+                    )}
+                    {request.attachmentDownloadUrl && (
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2">
+                        <div className="flex items-center gap-2 text-sm text-gray-200">
+                          <FileText className="h-4 w-4 text-cyan-300" />
+                          <span className="truncate">
+                            {request.attachmentFileName ?? "Testing assets archive"}
+                          </span>
+                        </div>
+                        <a
+                          href={request.attachmentDownloadUrl}
+                          className="text-xs text-cyan-300 transition-colors duration-200 hover:text-cyan-100"
+                          target="_blank"
+                          rel="noreferrer"
+                          download={request.attachmentFileName ?? undefined}
+                        >
+                          Download
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+          </div>
+
+          {/* Right Column - Updates, Logs & Bug Reports */}
+          <div className="flex w-3/5 flex-col gap-6 overflow-y-auto pr-2">
+            <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-light text-white">Latest updates</h3>
+                  <p className="text-xs text-gray-400">
+                    {request.updates.length} update{request.updates.length === 1 ? "" : "s"} recorded
+                  </p>
+                </div>
+              </div>
+
+              {request.updates.length === 0 && (
+                <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4 text-sm text-gray-400">
+                  No updates recorded for this request.
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {request.updates.map((update) => {
+                  const normalized = normalizeStatus(update.status);
+                  return (
+                    <div key={update.id} className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm text-white">{update.updateNote || "No note provided."}</div>
+                          <div className="mt-1 text-xs text-gray-400">
+                            {buildDisplayName(update.tester)} • {formatDateTime(update.createdAt)}
+                          </div>
+                        </div>
+                        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPillClasses[normalized.status]}`}>
+                          {getStatusIcon(normalized.status)}
+                          {humanizeStatus(update.status)}
                         </span>
-                      </div>
-                      <p className="mt-3 text-sm text-gray-200">
-                        {bug.description || "No description provided for this bug report."}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-400">
-                        <span>Status: {humanizeStatus(bug.status)}</span>
-                        <span>Tester: {buildDisplayName(bug.tester)}</span>
-                      </div>
-                      <div className="mt-4 space-y-2">
-                        <div className="text-xs uppercase tracking-wide text-gray-500">Comments</div>
-                        <BugCommentsList comments={bug.comments} />
                       </div>
                     </div>
                   );
                 })}
               </div>
-            )}
+            </div>
+
+            <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-light text-white">Recent test logs</h3>
+                  <p className="text-xs text-gray-400">Showing up to 8 latest entries</p>
+                </div>
+                <span className="text-xs text-gray-500">{request.logs.length} total</span>
+              </div>
+
+              {request.logs.length === 0 ? (
+                <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4 text-sm text-gray-400">
+                  No logs recorded yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {request.logs.slice(0, 8).map((log) => (
+                    <div key={log.id} className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span className="uppercase tracking-wide text-white/70">{log.logLevel}</span>
+                        <span>{formatDateTime(log.createdAt)}</span>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-200">{log.logMessage}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-light text-white">Bug reports</h3>
+                  <p className="text-xs text-gray-400">Linked issues and conversations</p>
+                </div>
+                <span className="text-xs text-gray-500">{request.bugReports.length} total</span>
+              </div>
+
+              {request.bugReports.length === 0 ? (
+                <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4 text-sm text-gray-400">
+                  No bug reports have been submitted for this request yet.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {request.bugReports.map((bug) => {
+                    const severityMeta = getSeverityMeta(bug.severity);
+                    return (
+                      <div key={bug.id} className="rounded-2xl border border-gray-800/60 bg-gray-900/40 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm text-white">{bug.title}</div>
+                            <div className="text-xs text-gray-500">{formatDateTime(bug.createdAt)}</div>
+                          </div>
+                          <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs uppercase tracking-wide ${severityMeta.badgeClass}`}>
+                            {severityMeta.label}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm text-gray-200">
+                          {bug.description || "No description provided for this bug report."}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-400">
+                          <span>Status: {humanizeStatus(bug.status)}</span>
+                          <span>Tester: {buildDisplayName(bug.tester)}</span>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                          <div className="text-xs uppercase tracking-wide text-gray-500">Comments</div>
+                          <BugCommentsList comments={bug.comments} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -915,6 +1000,7 @@ const MyRequestsPage: React.FC = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -1104,6 +1190,22 @@ const MyRequestsPage: React.FC = () => {
     }
   };
 
+  const handleOpenCreateForm = () => {
+    setSelectedRequest(null);
+    setShowCreateForm(true);
+  };
+
+  const handleCloseCreateForm = () => {
+    setShowCreateForm(false);
+  };
+
+  const handleRequestSubmitted = () => {
+    setShowCreateForm(false);
+    fetchRequests("refresh").catch(() => {
+      /* handled by fetchRequests toast */
+    });
+  };
+
   if (authLoading || isLoading) {
     return <Loading isVisible variant="fullscreen" message="Loading your testing requests..." />;
   }
@@ -1137,6 +1239,7 @@ const MyRequestsPage: React.FC = () => {
       />
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]" />
 
+      { /* HEADER */}
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <header className="sticky top-0 z-10 -mx-4 mb-8 border-b border-gray-800/60 bg-gray-950/80 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1149,6 +1252,15 @@ const MyRequestsPage: React.FC = () => {
               <p className="mt-1 text-sm text-gray-400">Monitor your submissions, progress, and testing feedback.</p>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleOpenCreateForm}
+                disabled={showCreateForm}
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus className="h-4 w-4" />
+                New Request
+              </button>
               <button
                 type="button"
                 onClick={handleRefresh}
@@ -1219,6 +1331,14 @@ const MyRequestsPage: React.FC = () => {
 
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       </div>
+
+      {showCreateForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur">
+          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-gray-800/70 bg-gray-950/95 p-6 shadow-2xl shadow-cyan-500/20">
+            <QATestingForm onClose={handleCloseCreateForm} onSubmitted={handleRequestSubmitted} />
+          </div>
+        </div>
+      )}
 
       <RequestDetailsDrawer request={selectedRequest} onClose={() => setSelectedRequest(null)} />
     </div>
