@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   Filter,
@@ -19,13 +18,12 @@ import {
   RefreshCw,
   Loader2,
   Plus,
-  Crown,
+  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Loading } from "@/components/Loading";
-import { ROUTES } from "@/constant/routes";
 import QATestingForm from "./components/QATestingForm";
 import {
   getBugReportsAPI,
@@ -38,9 +36,10 @@ import {
   type TestingUpdateInfo,
 } from "./services/testingRequestService";
 import {
-  getCurrentUserSubscriptionsAPI,
-  type UserSubscriptionRecord,
-} from "./services/subscriptionService";
+  getCurrentUserTokensAPI,
+  buyTokensAPI,
+  type UserTokenInfo,
+} from "./services/userTokenService";
 
 type NormalizedStatus = "pending" | "in-progress" | "completed" | "failed";
 type RequestPriority = "urgent" | "high" | "medium" | "low";
@@ -188,63 +187,6 @@ const toTimestamp = (value?: string | null) => {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 };
 
-const subscriptionTimestamp = (record?: UserSubscriptionRecord | null) => {
-  if (!record) {
-    return 0;
-  }
-  return toTimestamp(record.endDate ?? record.startDate ?? null);
-};
-
-const isSubscriptionRecordActive = (record: UserSubscriptionRecord | null) => {
-  if (!record) {
-    return false;
-  }
-  const status = record.status?.toLowerCase();
-  if (status && status !== "active") {
-    return false;
-  }
-  if (record.endDate) {
-    const end = toTimestamp(record.endDate);
-    if (end === 0 || end <= Date.now()) {
-      return false;
-    }
-  }
-  return true;
-};
-
-const selectActiveSubscription = (records: UserSubscriptionRecord[]): UserSubscriptionRecord | null => {
-  const activeRecords = records.filter((record) => isSubscriptionRecordActive(record));
-  if (activeRecords.length === 0) {
-    return null;
-  }
-
-  return activeRecords.reduce<UserSubscriptionRecord | null>((latest, current) => {
-    if (!current) {
-      return latest;
-    }
-    if (!latest) {
-      return current;
-    }
-    return subscriptionTimestamp(current) >= subscriptionTimestamp(latest) ? current : latest;
-  }, null);
-};
-
-const selectLatestSubscription = (records: UserSubscriptionRecord[]): UserSubscriptionRecord | null => {
-  if (!records || records.length === 0) {
-    return null;
-  }
-
-  return records.reduce<UserSubscriptionRecord | null>((latest, current) => {
-    if (!current) {
-      return latest;
-    }
-    if (!latest) {
-      return current;
-    }
-    return subscriptionTimestamp(current) >= subscriptionTimestamp(latest) ? current : latest;
-  }, null);
-};
-
 const formatRequestId = (id: number) => `TR-${id.toString().padStart(4, "0")}`;
 
 const formatProductType = (value?: string | null) => {
@@ -257,6 +199,32 @@ const formatProductType = (value?: string | null) => {
   }
   const normalized = value.replace(/[_-]+/g, " ").toLowerCase();
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const formatResetCountdown = (value?: string | null) => {
+  if (!value) {
+    return "--";
+  }
+  const target = new Date(value).getTime();
+  if (Number.isNaN(target)) {
+    return "--";
+  }
+  const diffMs = target - Date.now();
+  if (diffMs <= 0) {
+    return "soon";
+  }
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  if (days > 0) {
+    const hours = Math.floor((totalMinutes - days * 24 * 60) / 60);
+    return `${days}d ${hours}h`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
 };
 
 const normalizeStatus = (value?: string | null): { status: NormalizedStatus; progress: number } => {
@@ -1053,7 +1021,6 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({ request, on
 
 const MyRequestsPage: React.FC = () => {
   const { user, loading: authLoading, showAuthModal } = useAuth();
-  const navigate = useNavigate();
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -1066,15 +1033,10 @@ const MyRequestsPage: React.FC = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [userSubscriptions, setUserSubscriptions] = useState<UserSubscriptionRecord[]>([]);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
-
-  const activeSubscription = selectActiveSubscription(userSubscriptions);
-  const latestSubscription = selectLatestSubscription(userSubscriptions);
-  const subscriptionForDisplay = activeSubscription ?? latestSubscription;
-  const hasActiveSubscription = Boolean(activeSubscription);
-  const subscriptionExpired = subscriptionForDisplay != null && !isSubscriptionRecordActive(subscriptionForDisplay);
+  const [tokenInfo, setTokenInfo] = useState<UserTokenInfo | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(true);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [isBuyingTokens, setIsBuyingTokens] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -1085,44 +1047,74 @@ const MyRequestsPage: React.FC = () => {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  const fetchUserSubscription = useCallback(async () => {
+  const fetchTokenInfo = useCallback(async () => {
     if (!user) {
-      setUserSubscriptions([]);
-      setSubscriptionError(null);
-      setSubscriptionLoading(false);
+      setTokenInfo(null);
+      setTokenError(null);
+      setTokenLoading(false);
       return;
     }
 
-    setSubscriptionLoading(true);
-    setSubscriptionError(null);
+    setTokenLoading(true);
+    setTokenError(null);
 
     try {
-      const records = await getCurrentUserSubscriptionsAPI();
-      setUserSubscriptions(records ?? []);
+      const info = await getCurrentUserTokensAPI();
+      setTokenInfo(info);
     } catch (error) {
-      const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status === 404) {
-        setUserSubscriptions([]);
-        setSubscriptionError(null);
-      } else {
-        console.error("Failed to verify subscription", error);
-        toast.error("Unable to verify your subscription. Please try again later.");
-        setSubscriptionError("Unable to verify your subscription right now.");
-        setUserSubscriptions([]);
-      }
+      console.error("Failed to load token balance", error);
+      toast.error("Unable to load your token balance right now.");
+      setTokenError("Unable to load token balance.");
+      setTokenInfo(null);
     } finally {
-      setSubscriptionLoading(false);
+      setTokenLoading(false);
     }
   }, [user]);
 
-  const ownerId = user?.id ?? null;
+const ownerId = user?.id ?? null;
+
+  const handleBuyTokens = useCallback(async () => {
+    if (!tokenInfo) {
+      toast.error("Token balance is not available yet.");
+      return;
+    }
+    if (!tokenInfo.canPurchase) {
+      toast.error("Vui \u1ed3ng mua plan tr\u01b0\u1edbc.");
+      return;
+    }
+
+    const input = window.prompt("Enter the number of tokens to purchase", "10");
+    if (!input) {
+      return;
+    }
+
+    const parsed = Number.parseInt(input, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error("Please enter a valid token amount.");
+      return;
+    }
+
+    try {
+      setIsBuyingTokens(true);
+      const updated = await buyTokensAPI(parsed);
+      setTokenInfo(updated);
+      setTokenError(null);
+      toast.success(`Purchased ${parsed} token${parsed > 1 ? "s" : ""}.`);
+    } catch (error) {
+      console.error("Failed to purchase tokens", error);
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(message ?? "Failed to purchase tokens. Please try again.");
+    } finally {
+      setIsBuyingTokens(false);
+    }
+  }, [tokenInfo]);
 
   useEffect(() => {
     if (authLoading) {
       return;
     }
-    fetchUserSubscription();
-  }, [authLoading, fetchUserSubscription]);
+    fetchTokenInfo();
+  }, [authLoading, fetchTokenInfo]);
 
   const fetchRequests = useCallback(
     async (variant: "initial" | "refresh" = "initial") => {
@@ -1180,17 +1172,11 @@ const MyRequestsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (authLoading || subscriptionLoading) {
+    if (authLoading) {
       return;
     }
 
     if (!user) {
-      setIsLoading(false);
-      setRequests([]);
-      return;
-    }
-
-    if (!hasActiveSubscription) {
       setIsLoading(false);
       setRequests([]);
       setSelectedRequest(null);
@@ -1199,7 +1185,7 @@ const MyRequestsPage: React.FC = () => {
     }
 
     fetchRequests("initial");
-  }, [authLoading, subscriptionLoading, user, hasActiveSubscription, fetchRequests]);
+  }, [authLoading, user, fetchRequests]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1306,14 +1292,23 @@ const MyRequestsPage: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    if (!hasActiveSubscription || subscriptionLoading || isRefreshing) {
+    if (isRefreshing) {
       return;
     }
     fetchRequests("refresh");
+    void fetchTokenInfo();
   };
 
   const handleOpenCreateForm = () => {
     setSelectedRequest(null);
+    if (tokenLoading) {
+      toast.error("Token balance is loading. Please try again in a moment.");
+      return;
+    }
+    if (tokenInfo && tokenInfo.remainingTokens <= 0) {
+        toast.error("Vui \u1ed3ng mua plan tr\u01b0\u1edbc.");
+      return;
+    }
     setShowCreateForm(true);
   };
 
@@ -1326,9 +1321,22 @@ const MyRequestsPage: React.FC = () => {
     fetchRequests("refresh").catch(() => {
       /* handled by fetchRequests toast */
     });
+    void fetchTokenInfo();
   };
 
-  if (authLoading || subscriptionLoading || (hasActiveSubscription && isLoading)) {
+  const handleRequireTokens = useCallback(
+    (neededTokens: number) => {
+      setShowCreateForm(false);
+      if (tokenInfo?.canPurchase) {
+        toast.error(`You need ${neededTokens} token${neededTokens > 1 ? "s" : ""}. Buy more tokens to continue.`);
+      } else {
+        toast.error("Vui \u1ed3ng mua plan tr\u01b0\u1edbc.");
+      }
+    },
+    [tokenInfo],
+  );
+
+  if (authLoading || tokenLoading || isLoading) {
     return <Loading isVisible variant="fullscreen" message="Loading your testing requests..." />;
   }
 
@@ -1346,56 +1354,6 @@ const MyRequestsPage: React.FC = () => {
             <User className="h-4 w-4" />
             Sign in
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasActiveSubscription) {
-    const planName =
-      subscriptionForDisplay?.subscription?.name ??
-      subscriptionForDisplay?.customName ??
-      "subscription plan";
-    const expiryLabelRaw = subscriptionForDisplay?.endDate
-      ? formatDateTime(subscriptionForDisplay.endDate)
-      : null;
-    const expiryLabel = expiryLabelRaw && expiryLabelRaw !== "N/A" ? expiryLabelRaw : null;
-
-    return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center bg-gray-950 px-4 text-white">
-        <div className="w-full max-w-md rounded-2xl border border-gray-800/60 bg-gray-900/70 p-6 text-center shadow-lg shadow-cyan-500/10">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/25 to-cyan-400/15 text-cyan-300">
-            <Crown className="h-6 w-6" />
-          </div>
-          <h2 className="mt-4 text-xl font-light">Subscription Required</h2>
-          <p className="mt-3 text-sm text-gray-400">
-            {subscriptionForDisplay
-              ? subscriptionExpired && expiryLabel
-                ? `Your ${planName} expired on ${expiryLabel}.`
-                : `We couldn't confirm an active status for your ${planName}.`
-              : "An active subscription plan is required to submit and manage testing requests."}
-          </p>
-          {subscriptionError ? (
-            <p className="mt-3 text-xs text-rose-400">{subscriptionError}</p>
-          ) : null}
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.PRICING.path)}
-              className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-5 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105"
-            >
-              Explore Plans
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void fetchUserSubscription();
-              }}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-700 bg-gray-900 px-5 py-2 text-sm text-gray-300 transition-colors duration-200 hover:border-cyan-500/40 hover:text-cyan-200"
-            >
-              Retry
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -1427,7 +1385,8 @@ const MyRequestsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenCreateForm}
-                disabled={showCreateForm}
+                disabled={showCreateForm || tokenLoading || (tokenInfo != null && tokenInfo.remainingTokens <= 0)}
+                title={tokenInfo && tokenInfo.remainingTokens <= 0 ? "Not enough tokens" : undefined}
                 className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="h-4 w-4" />
@@ -1445,6 +1404,49 @@ const MyRequestsPage: React.FC = () => {
             </div>
           </div>
         </header>
+
+        <div className="mb-8 rounded-2xl border border-gray-800/60 bg-gray-900/60 p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
+                <Zap className="h-5 w-5" />
+              </span>
+              <div>
+                <div className="text-sm text-gray-400">Remaining tokens</div>
+                <div className="text-xl font-semibold text-white">
+                  {tokenInfo ? `${tokenInfo.remainingTokens} / ${tokenInfo.totalTokens}` : "--"}
+                </div>
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-400">Next reset in</div>
+              <div className="text-xl font-semibold text-white">{formatResetCountdown(tokenInfo?.nextResetAt)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-400">Plan type</div>
+              <div className="text-xl font-semibold text-white">{(tokenInfo?.planType ?? "FREE").toUpperCase()}</div>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                void handleBuyTokens();
+              }}
+              disabled={!tokenInfo || !tokenInfo.canPurchase || isBuyingTokens}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isBuyingTokens ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              {isBuyingTokens ? "Processing..." : "Buy more tokens"}
+            </button>
+            <div className="text-xs text-gray-500">
+              {tokenInfo?.canPurchase
+                ? "Purchased tokens are added on top of your plan allocation."
+                : "Upgrade to a paid plan to purchase additional tokens."}
+            </div>
+          </div>
+          {tokenError ? <p className="mt-3 text-xs text-rose-400">{tokenError}</p> : null}
+        </div>
 
         <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="rounded-2xl border border-gray-800/60 bg-gray-900/60 p-4">
@@ -1507,7 +1509,12 @@ const MyRequestsPage: React.FC = () => {
       {showCreateForm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur">
           <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-gray-800/70 bg-gray-950/95 p-6 shadow-2xl shadow-cyan-500/20">
-            <QATestingForm onClose={handleCloseCreateForm} onSubmitted={handleRequestSubmitted} />
+            <QATestingForm
+              onClose={handleCloseCreateForm}
+              onSubmitted={handleRequestSubmitted}
+              tokenInfo={tokenInfo}
+              onRequireTokens={handleRequireTokens}
+            />
           </div>
         </div>
       )}
@@ -1518,3 +1525,18 @@ const MyRequestsPage: React.FC = () => {
 };
 
 export default MyRequestsPage;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

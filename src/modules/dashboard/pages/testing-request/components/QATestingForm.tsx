@@ -15,10 +15,14 @@ import {
   submitTestingRequestAPI,
   type SubmitTestingRequestPayload,
 } from "../services/testingRequestService";
+import { calculateRequiredTokens, getTokenCostForType } from "../utils/tokenCost";
+import type { UserTokenInfo } from "../services/userTokenService";
 
 interface QATestingFormProps {
   onClose: () => void;
   onSubmitted?: () => void;
+  tokenInfo?: UserTokenInfo | null;
+  onRequireTokens?: (requiredTokens: number) => void;
 }
 
 interface LocalFormState {
@@ -43,7 +47,12 @@ const TESTING_OPTIONS = [
 
 const FILE_EXTENSIONS = [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"];
 
-const QATestingForm: React.FC<QATestingFormProps> = ({ onClose, onSubmitted }) => {
+const QATestingForm: React.FC<QATestingFormProps> = ({
+  onClose,
+  onSubmitted,
+  tokenInfo,
+  onRequireTokens,
+}) => {
   const [formState, setFormState] = useState<LocalFormState>({
     title: "",
     description: "",
@@ -64,6 +73,11 @@ const QATestingForm: React.FC<QATestingFormProps> = ({ onClose, onSubmitted }) =
       formState.testingTypes.length > 0
     );
   }, [formState]);
+
+  const requiredTokens = useMemo(
+    () => calculateRequiredTokens(formState.testingTypes),
+    [formState.testingTypes],
+  );
 
   const handleToggleType = (option: string) => {
     setFormState((prev) => {
@@ -123,6 +137,11 @@ const QATestingForm: React.FC<QATestingFormProps> = ({ onClose, onSubmitted }) =
 
     try {
       setIsSubmitting(true);
+      if (tokenInfo && tokenInfo.remainingTokens < requiredTokens) {
+        toast.error("Not enough tokens to submit this request.");
+        onRequireTokens?.(requiredTokens);
+        return;
+      }
       await submitTestingRequestAPI(payload);
       toast.success("Testing request submitted successfully.");
       onSubmitted?.();
@@ -143,15 +162,41 @@ const QATestingForm: React.FC<QATestingFormProps> = ({ onClose, onSubmitted }) =
           <p className="mt-1 text-sm text-gray-400">
             Provide context and assets so our QA team can prepare the right test plan.
           </p>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="text-gray-400 transition-colors duration-200 hover:text-white"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5" />
+      </button>
+    </div>
+
+      <div className="rounded-2xl border border-gray-800/60 bg-gray-900/60 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Estimated token cost</p>
+            <p className="text-lg font-medium text-white">{requiredTokens} token(s)</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Remaining tokens</p>
+            <p className="text-lg font-medium text-white">
+              {tokenInfo ? `${tokenInfo.remainingTokens} / ${tokenInfo.totalTokens}` : "--"}
+            </p>
+          </div>
+          <div className="text-sm text-gray-400">
+            Plan:{" "}
+            <span className="text-cyan-200">
+              {(tokenInfo?.planType ?? "FREE").toString().toUpperCase()}
+            </span>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-gray-400 transition-colors duration-200 hover:text-white"
-          aria-label="Close"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        {tokenInfo && tokenInfo.remainingTokens < requiredTokens ? (
+          <p className="mt-3 text-sm text-amber-300">
+            Not enough tokens. Purchase additional tokens or adjust the selected testing scope.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -227,18 +272,22 @@ const QATestingForm: React.FC<QATestingFormProps> = ({ onClose, onSubmitted }) =
             <div className="flex flex-wrap gap-2">
               {TESTING_OPTIONS.map((option) => {
                 const isSelected = formState.testingTypes.includes(option);
+                const cost = getTokenCostForType(option);
                 return (
                   <button
                     key={option}
                     type="button"
                     onClick={() => handleToggleType(option)}
-                    className={`rounded-full border px-3 py-1 text-xs transition-colors duration-200 ${
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition-colors duration-200 ${
                       isSelected
                         ? "border-cyan-500/60 bg-cyan-500/20 text-cyan-200"
                         : "border-gray-800/60 bg-gray-900/50 text-gray-400 hover:border-cyan-500/30 hover:text-cyan-200"
                     }`}
                   >
-                    {option}
+                    <span>{option}</span>
+                    <span className="ml-2 rounded-full bg-gray-800/80 px-2 py-0.5 text-[10px] uppercase text-gray-300">
+                      {cost} token{cost > 1 ? "s" : ""}
+                    </span>
                   </button>
                 );
               })}
