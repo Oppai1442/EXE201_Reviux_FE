@@ -238,7 +238,7 @@ const MySubscription: React.FC = () => {
       setError(null);
     } catch (err) {
       console.error("Failed to load subscription data", err);
-      setError("Không thể tải dữ liệu subscription. Vui lòng thử lại sau.");
+      setError("Could not load subscription data. Please try again later.");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -323,7 +323,7 @@ const MySubscription: React.FC = () => {
 
   const handleCancelSubscription = () => {
     setShowCancelModal(false);
-    alert("Tính năng hủy subscription đang được phát triển. Vui lòng liên hệ đội ngũ hỗ trợ.");
+    alert("The subscription cancellation feature is currently under development. Please contact our support team for assistance.");
   };
 
   if (isLoading) {
@@ -342,10 +342,10 @@ const MySubscription: React.FC = () => {
             <div>
               <p className="text-sm uppercase tracking-[0.35em] text-cyan-400/80">Subscription Center</p>
               <h1 className="mt-2 text-4xl font-light md:text-5xl">
-                Quản lý gói <span className="bg-gradient-to-r from-cyan-400 to-cyan-600 bg-clip-text text-transparent">Reviux</span>
+                Manage Your <span className="bg-gradient-to-r from-cyan-400 to-cyan-600 bg-clip-text text-transparent">Reviux Plan</span>
               </h1>
               <p className="mt-3 max-w-2xl text-base text-slate-400">
-                Theo dõi gói hiện tại, số token còn lại và lịch sử subscription của bạn. Điều chỉnh kế hoạch để phù hợp với nhu cầu kiểm thử.
+                Track your current plan, remaining tokens, and subscription history. Adjust your plan to fit your testing needs.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -356,7 +356,7 @@ const MySubscription: React.FC = () => {
                 disabled={isRefreshing}
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Làm mới
+                Refresh
               </button>
               <button
                 type="button"
@@ -364,7 +364,7 @@ const MySubscription: React.FC = () => {
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
               >
                 <CreditCard className="h-4 w-4" />
-                Chọn gói khác
+                Change Plan
               </button>
             </div>
           </div>
@@ -389,8 +389,8 @@ const MySubscription: React.FC = () => {
                   </div>
                   <p className="mt-2 text-sm text-slate-400">
                     {activeSubscription
-                      ? "Bạn đang sử dụng gói trả phí của Reviux. Token được reset sau mỗi 12 giờ theo chính sách của gói."
-                      : "Bạn đang ở free tier. Khám phá các gói nâng cao để có thêm token và tính năng."}
+                      ? "You are on a paid Reviux plan. Tokens reset every 12 hours according to your plan's policy."
+                      : "You are on the free tier. Explore premium plans for more tokens and features."}
                   </p>
                 </div>
                 {activeSubscription ? (
@@ -401,7 +401,7 @@ const MySubscription: React.FC = () => {
                       className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:border-rose-500/50 hover:text-rose-200 focus:outline-none focus:ring-2 focus:ring-rose-500/30"
                     >
                       <XCircle className="h-4 w-4" />
-                      Yêu cầu hủy
+                      Request Cancellation
                     </button>
                     <button
                       type="button"
@@ -409,7 +409,7 @@ const MySubscription: React.FC = () => {
                       className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 px-4 py-2 text-sm text-cyan-300 transition hover:border-cyan-500/60 hover:text-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
                     >
                       <TrendingUp className="h-4 w-4" />
-                      Lịch sử thanh toán
+                      Billing History
                     </button>
                   </div>
                 ) : null}
@@ -417,27 +417,27 @@ const MySubscription: React.FC = () => {
 
               <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-widest text-slate-500">Chi phí</p>
+                  <p className="text-xs uppercase tracking-widest text-slate-500">Price</p>
                   <p className="mt-2 text-2xl font-light text-white">{planPrice}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-widest text-slate-500">Chu kỳ</p>
+                  <p className="text-xs uppercase tracking-widest text-slate-500">Billing Cycle</p>
                   <p className="mt-2 text-2xl font-light text-white">{billingPeriod}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-widest text-slate-500">Bắt đầu</p>
+                  <p className="text-xs uppercase tracking-widest text-slate-500">Start Date</p>
                   <p className="mt-2 text-2xl font-light text-white">{formatDate(activeSubscription?.startDate ?? activeSubscription?.createdAt ?? null)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-widest text-slate-500">Ngày kết thúc</p>
+                  <p className="text-xs uppercase tracking-widest text-slate-500">End Date</p>
                   <p className="mt-2 text-2xl font-light text-white">{formatDate(activeSubscription?.endDate ?? null)}</p>
                 </div>
               </div>
 
               <div className="mt-8">
-                <h3 className="text-sm uppercase tracking-[0.35em] text-slate-500">Tính năng bao gồm</h3>
+                <h3 className="text-sm uppercase tracking-[0.35em] text-slate-500">Features Included</h3>
                 {planFeatures.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-400">Thông tin tính năng sẽ được hiển thị khi gói dịch vụ được cập nhật.</p>
+                  <p className="mt-3 text-sm text-slate-400">Feature information will be displayed once the service plan is updated.</p>
                 ) : (
                   <ul className="mt-4 grid gap-3 md:grid-cols-2">
                     {planFeatures.map((feature) => (
@@ -457,42 +457,42 @@ const MySubscription: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-cyan-400/80">Token Balance</p>
-                  <h3 className="mt-2 text-2xl font-light text-white">Token còn lại</h3>
+                  <h3 className="mt-2 text-2xl font-light text-white">Tokens Remaining</h3>
                 </div>
                 <Shield className="h-8 w-8 text-cyan-400" />
               </div>
               <div className="mt-5 space-y-3 text-sm text-slate-300">
                 <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/30 px-4 py-3">
-                  <span>Số dư</span>
+                  <span>Balance</span>
                   <span className="text-lg font-semibold text-cyan-300">
                     {tokenInfo ? `${tokenInfo.remainingTokens} / ${tokenInfo.totalTokens}` : "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/30 px-4 py-3">
-                  <span>Tiếp theo reset</span>
+                  <span>Next Reset</span>
                   <span className="text-sm text-slate-200">{formatTokenCountdown(tokenInfo?.nextResetAt ?? null)}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/30 px-4 py-3">
-                  <span>Loại gói</span>
+                  <span>Plan Type</span>
                   <span className="text-sm text-slate-200">{tokenInfo?.planType ?? "FREE"}</span>
                 </div>
               </div>
               <p className="mt-3 text-xs text-slate-500">
-                Token được reset tự động mỗi 12 giờ. Với gói trả phí, bạn có thể mua thêm token thông qua mục Testing Requests.
+                Tokens automatically reset every 12 hours. With a paid plan, you can purchase additional tokens through the Testing Requests section.
               </p>
             </div>
 
             <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg shadow-cyan-500/10">
-              <h3 className="text-lg font-light text-white">Bạn cần thêm?</h3>
+              <h3 className="text-lg font-light text-white">Need More?</h3>
               <p className="mt-2 text-sm text-slate-400">
-                Khám phá các gói nâng cao với nhiều token hơn, quyền truy cập ưu tiên và tính năng dành cho doanh nghiệp.
+                Explore advanced plans with more tokens, priority access, and enterprise-grade features.
               </p>
               <button
                 type="button"
                 onClick={handleManagePlan}
                 className="mt-4 inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 px-4 py-2 text-sm text-cyan-300 transition hover:border-cyan-500/60 hover:text-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
               >
-                Khám phá gói <ChevronRight className="h-4 w-4" />
+                Explore Plans <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </aside>
@@ -500,26 +500,26 @@ const MySubscription: React.FC = () => {
 
         <section className="mb-14">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-light text-white">Lịch sử subscription</h2>
+            <h2 className="text-2xl font-light text-white">Subscription History</h2>
             <Calendar className="h-5 w-5 text-cyan-400" />
           </div>
           <p className="mt-2 text-sm text-slate-400">
-            Tất cả gói mà bạn đã đăng ký. Danh sách được sắp xếp theo thời gian gần nhất.
+            A complete record of all your subscribed plans, sorted by the most recent.
           </p>
 
           <div className="mt-4 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60">
             {subscriptionHistory.length === 0 ? (
-              <div className="py-16 text-center text-sm text-slate-400">Chưa có subscription nào được ghi nhận.</div>
+              <div className="py-16 text-center text-sm text-slate-400">No subscription history found.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-800">
                   <thead className="bg-slate-950/40 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                     <tr>
-                      <th className="px-6 py-4">Gói</th>
-                      <th className="px-6 py-4">Trạng thái</th>
-                      <th className="px-6 py-4">Bắt đầu</th>
-                      <th className="px-6 py-4">Kết thúc</th>
-                      <th className="px-6 py-4">Chi phí</th>
+                      <th className="px-6 py-4">Plan</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Start Date</th>
+                      <th className="px-6 py-4">End Date</th>
+                      <th className="px-6 py-4">Amount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-sm text-slate-200">
@@ -532,7 +532,7 @@ const MySubscription: React.FC = () => {
                           <td className="whitespace-nowrap px-6 py-4">
                             <div className="font-medium text-white">{name}</div>
                             <div className="text-xs text-slate-400">
-                              {item.subscription?.description ?? item.customDescription ?? "Không có mô tả"}
+                              {item.subscription?.description ?? item.customDescription ?? "No description available"}
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4">
@@ -555,15 +555,15 @@ const MySubscription: React.FC = () => {
 
         <section>
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-light text-white">Gợi ý gói nổi bật</h2>
+            <h2 className="text-2xl font-light text-white">Featured Plans</h2>
             <TrendingUp className="h-5 w-5 text-cyan-400" />
           </div>
-          <p className="mt-2 text-sm text-slate-400">Chọn gói phù hợp để mở khóa thêm token và quyền lợi.</p>
+          <p className="mt-2 text-sm text-slate-400">Choose the right plan to unlock more tokens and benefits.</p>
 
           <div className="mt-5 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {availablePlans.length === 0 ? (
               <div className="col-span-full rounded-3xl border border-slate-800 bg-slate-900/60 px-6 py-10 text-center text-sm text-slate-400">
-                Chưa có dữ liệu gói subscription để hiển thị.
+                No subscription plans available to display at the moment.
               </div>
             ) : (
               availablePlans.map((plan) => {
@@ -577,7 +577,7 @@ const MySubscription: React.FC = () => {
                       <h3 className="text-xl font-light text-white">{plan.name}</h3>
                       {isCurrent ? (
                         <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-medium text-cyan-300">
-                          Đang sử dụng
+                          Current Plan
                         </span>
                       ) : null}
                     </div>
@@ -592,7 +592,7 @@ const MySubscription: React.FC = () => {
                         </li>
                       ))}
                       {plan.features.length > 4 ? (
-                        <li className="text-xs text-slate-500">+ {plan.features.length - 4} tính năng khác</li>
+                        <li className="text-xs text-slate-500">+ {plan.features.length - 4} more features</li>
                       ) : null}
                     </ul>
                     <button
@@ -600,7 +600,7 @@ const MySubscription: React.FC = () => {
                       onClick={handleManagePlan}
                       className="mt-6 inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 px-4 py-2 text-sm text-cyan-300 transition hover:border-cyan-500/60 hover:text-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
                     >
-                      Xem chi tiết <ChevronRight className="h-4 w-4" />
+                      View Details <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -615,16 +615,16 @@ const MySubscription: React.FC = () => {
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900/90 p-8 shadow-2xl shadow-rose-500/20">
             <div className="flex items-center gap-3 text-rose-200">
               <AlertCircle className="h-6 w-6" />
-              <h3 className="text-xl font-light">Yêu cầu hủy subscription</h3>
+              <h3 className="text-xl font-light">Cancel Subscription Request</h3>
             </div>
             <p className="mt-4 text-sm text-slate-300">
-              Sau khi hủy, bạn vẫn có thể sử dụng gói hiện tại đến hết chu kỳ thanh toán. Vui lòng xác nhận để gửi yêu cầu tới đội ngũ hỗ trợ.
+              After cancellation, you can continue using your current plan until the end of the billing cycle. Please confirm to send a cancellation request to our support team.
             </p>
             <div className="mt-6 space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/30 p-4">
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Gói hiện tại</p>
+              <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Current Plan</p>
               <p className="text-lg font-light text-white">{planName}</p>
               <p className="text-sm text-slate-400">
-                Chúng tôi sẽ liên hệ để hoàn tất yêu cầu hủy subscription của bạn trong thời gian sớm nhất.
+                We will contact you shortly to process your subscription cancellation request.
               </p>
             </div>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -633,14 +633,14 @@ const MySubscription: React.FC = () => {
                 onClick={() => setShowCancelModal(false)}
                 className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm text-slate-200 transition hover:border-cyan-500/40 hover:text-cyan-200 focus:outline-none focus:ring-2 focus:ring-slate-600"
               >
-                Tiếp tục sử dụng
+                Keep Subscription
               </button>
               <button
                 type="button"
                 onClick={handleCancelSubscription}
                 className="flex-1 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 transition hover:border-rose-500/60 hover:bg-rose-500/20 focus:outline-none focus:ring-2 focus:ring-rose-500/40"
               >
-                Gửi yêu cầu hủy
+                Submit Cancellation Request
               </button>
             </div>
           </div>
