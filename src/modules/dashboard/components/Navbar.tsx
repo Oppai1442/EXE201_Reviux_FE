@@ -110,7 +110,7 @@ const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="relative group">
+              <div className="relative group" onClick={() =>navigate(ROUTES.HOME.path)}>
                 <div className="text-2xl font-light text-white hover:text-cyan-400 transition-colors duration-300 cursor-pointer">
                   <span className="bg-gradient-to-r from-white to-cyan-400 bg-clip-text text-transparent">
                     Reviux

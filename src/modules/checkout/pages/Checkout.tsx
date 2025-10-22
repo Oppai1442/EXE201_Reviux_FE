@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import {
   User,
   Mail,
@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loading } from "@/components/Loading";
-import { checkoutVnpayConfirm, getCheckoutDetailAPI, initiatePaymentAPI } from "../services/checkout";
+import { toast } from "react-hot-toast";
+import { checkoutStripeConfirm, checkoutVnpayConfirm, getCheckoutDetailAPI, initiatePaymentAPI } from "../services/checkout";
 import {
   SubscriptionSummary,
   TopUpComponent,
@@ -28,9 +29,59 @@ interface CustomerInfo {
 
 type CustomerInfoField = keyof CustomerInfo;
 
+type PaymentMethodId = "VNPAY" | "STRIPE" | "PAYPAL" | "MOMO" | "CREDIT";
+
+interface PaymentMethodOption {
+  id: PaymentMethodId;
+  name: string;
+  image: string;
+  description: string;
+  available: boolean;
+}
+
+const PAYMENT_METHODS: PaymentMethodOption[] = [
+  {
+    id: "VNPAY",
+    name: "VNPay",
+    image: "https://vnpay.vn/s1/statics.vnpay.vn/2023/9/06ncktiwd6dc1694418196384.png",
+    description: "Vietnamese banks and QR code payments",
+    available: true,
+  },
+  {
+    id: "STRIPE",
+    name: "International Cards (Stripe)",
+    image: "https://upload.wikimedia.org/wikipedia/commons/4/4e/Stripe_Logo%2C_revised_2016.svg",
+    description: "Visa, Mastercard, AMEX, and global debit cards",
+    available: true,
+  },
+  {
+    id: "PAYPAL",
+    name: "PayPal",
+    image: "https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg",
+    description: "Pay with your PayPal balance (coming soon)",
+    available: false,
+  },
+  {
+    id: "MOMO",
+    name: "MoMo Wallet",
+    image: "https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png",
+    description: "MoMo e-wallet in Vietnam (coming soon)",
+    available: false,
+  },
+  {
+    id: "CREDIT",
+    name: "Manual Credit Card",
+    image: "https://upload.wikimedia.org/wikipedia/commons/0/04/Visa.svg",
+    description: "Direct card processing (coming soon)",
+    available: false,
+  },
+];
+
 const CheckoutPage = () => {
   const { id = "" } = useParams();
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>();
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodId | undefined>(() =>
+    PAYMENT_METHODS.find((method) => method.available)?.id,
+  );
   const [isProcessing, setIsProcessing] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     fullName: "",
@@ -50,11 +101,36 @@ const CheckoutPage = () => {
     checkoutStatus: "UNKNOWN",
   })
   const [params] = useSearchParams();
+  const selectedMethod = PAYMENT_METHODS.find((method) => method.id === selectedPaymentMethod);
 
   useEffect(() => {
     const fetchData = async () => {
-      // 1. Check vnpay param
+      const basePath = `/checkout/${id}`;
+      const providerParam = (params.get("provider") ?? params.get("platform") ?? "").toLowerCase();
+      const statusParam = params.get("status")?.toLowerCase();
+      const stripeSessionId = params.get("session_id");
       const vnpParams: Record<string, string> = {};
+
+      if (stripeSessionId && (providerParam === "" || providerParam === "stripe")) {
+        try {
+          setIsProcessing(true);
+          const response = await checkoutStripeConfirm({ checkoutId: id, sessionId: stripeSessionId });
+          if (response?.success) {
+            toast.success("Stripe payment confirmed successfully.");
+          } else {
+            toast.error(response?.message ?? "Unable to confirm Stripe payment.");
+          }
+        } catch (error) {
+          console.error("Failed to confirm Stripe payment:", error);
+          toast.error("Failed to confirm Stripe payment.");
+        } finally {
+          setIsProcessing(false);
+          window.history.replaceState(null, "", basePath);
+        }
+      } else if (stripeSessionId && statusParam === "cancel" && (providerParam === "" || providerParam === "stripe")) {
+        toast.error("Stripe payment was cancelled.");
+        window.history.replaceState(null, "", basePath);
+      }
 
       for (const [key, value] of params.entries()) {
         if (key.startsWith("vnp_")) {
@@ -62,28 +138,30 @@ const CheckoutPage = () => {
         }
       }
 
-      const hasVnpParam = Object.keys(vnpParams).length > 0;
-      if (hasVnpParam) {
+      if (Object.keys(vnpParams).length > 0) {
         try {
-          await checkoutVnpayConfirm({ checkoutId: id, vnpParams: vnpParams });
-
-        } catch (err) { }
-        console.log("✅ vnpParams:", vnpParams);
+          await checkoutVnpayConfirm({ checkoutId: id, vnpParams });
+          toast.success("VNPay payment confirmed successfully.");
+        } catch (error) {
+          console.error("Failed to confirm VNPay payment:", error);
+          toast.error("Failed to confirm VNPay payment.");
+        } finally {
+          window.history.replaceState(null, "", basePath);
+        }
       }
 
-      // 2. Fetch thông tin checkout
       try {
         const response = await getCheckoutDetailAPI(id);
-        setCheckoutDetail(response)
+        setCheckoutDetail(response);
 
         if (response.checkoutType === "TOPUP") {
           setTopupDetail({
             amount: response.topupAmount || 0,
-            currency: "USD"
+            currency: "USD",
           });
         }
-      } catch (err: any) {
-
+      } catch (err) {
+        console.error("Failed to fetch checkout detail:", err);
       } finally {
         setIsLoading(false);
       }
@@ -93,40 +171,22 @@ const CheckoutPage = () => {
   }, []);
 
 
-  const paymentMethods = [
-    {
-      id: "vnpay",
-      name: "VNPay",
-      image:
-        "https://vnpay.vn/s1/statics.vnpay.vn/2023/9/06ncktiwd6dc1694418196384.png",
-      available: true,
-    },
-    {
-      id: "paypal",
-      name: "PayPal",
-      image: "https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg",
-      available: false,
-    },
-    {
-      id: "momo",
-      name: "MoMo Wallet",
-      image: "https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png",
-      available: false,
-    },
-    {
-      id: "credit",
-      name: "Credit Card",
-      image: "https://upload.wikimedia.org/wikipedia/commons/0/04/Visa.svg",
-      available: false,
-    },
-  ];
 
   const handleInputChange = (field: CustomerInfoField, value: string) => {
     setCustomerInfo((prev: CustomerInfo) => ({ ...prev, [field]: value }));
   };
 
   const handleConfirmPayment = async () => {
-    if (!isFormValid()) return;
+    if (!isFormValid()) {
+      toast.error("Please complete all required fields.");
+      return;
+    }
+
+    if (!selectedPaymentMethod || !selectedMethod?.available) {
+      toast.error("Please select an available payment method.");
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -136,14 +196,15 @@ const CheckoutPage = () => {
         customerInfo,
       });
 
-      // Có thể redirect nếu là thanh toán qua web
-      if (response.paymentUrl) {
+      if (response?.paymentUrl) {
         window.location.href = response.paymentUrl;
+      } else {
+        setIsProcessing(false);
       }
-      // Ngược lại: chờ xác nhận từ WS ở dưới
     } catch (err) {
-      setIsProcessing(false);
       console.error("Failed to initiate payment:", err);
+      toast.error("Failed to initiate payment. Please try again.");
+      setIsProcessing(false);
     }
   };
 
@@ -154,7 +215,7 @@ const CheckoutPage = () => {
       customerInfo.email &&
       customerInfo.phone &&
       customerInfo.address &&
-      (!!selectedPaymentMethod)
+      selectedMethod?.available
     );
   };
 
@@ -323,74 +384,68 @@ const CheckoutPage = () => {
               </div>
 
               <div className="grid grid-cols-1 gap-4">
-                {paymentMethods.map((method) => (
-                  <div
-                    key={method.id}
-                    onClick={() => method.available && setSelectedPaymentMethod(method.id)}
-                    className={`group relative flex items-center gap-4 p-5 rounded-xl border transition-all duration-200 ${!method.available
-                      ? "opacity-50 cursor-not-allowed bg-gray-800/20 border-gray-700/50"
-                      : selectedPaymentMethod === method.id
-                        ? "bg-red-500/10 border-red-500/50 text-white shadow-lg shadow-red-500/10 cursor-pointer"
-                        : "bg-gray-800/30 border-gray-700 text-gray-400 hover:border-gray-600 hover:bg-gray-800/50 cursor-pointer"
-                      }`}
-                  >
-                    <div className="flex-shrink-0 w-12 h-12 bg-white rounded-lg p-2 flex items-center justify-center">
-                      <img
-                        src={method.image}
-                        alt={method.name}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          const img = e.target as HTMLImageElement;
-                          img.style.display = "none";
-                          if (
-                            img.nextSibling &&
-                            img.nextSibling instanceof HTMLElement
-                          ) {
-                            (img.nextSibling as HTMLElement).style.display = "flex";
-                          }
-                        }}
-                      />
-                      <div className="hidden w-full h-full bg-gray-200 rounded items-center justify-center text-gray-600 text-xs font-medium">
-                        {method.name.split(" ")[0]}
+                {PAYMENT_METHODS.map((method) => {
+                  const isSelected = selectedPaymentMethod === method.id;
+                  return (
+                    <div
+                      key={method.id}
+                      onClick={() => method.available && setSelectedPaymentMethod(method.id)}
+                      className={`group relative flex items-center gap-4 p-5 rounded-xl border transition-all duration-200 ${!method.available
+                        ? "opacity-50 cursor-not-allowed bg-gray-800/20 border-gray-700/50"
+                        : isSelected
+                          ? "bg-red-500/10 border-red-500/50 text-white shadow-lg shadow-red-500/10 cursor-pointer"
+                          : "bg-gray-800/30 border-gray-700 text-gray-400 hover:border-gray-600 hover:bg-gray-800/50 cursor-pointer"
+                        }`}
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 bg-white rounded-lg p-2 flex items-center justify-center">
+                        <img
+                          src={method.image}
+                          alt={method.name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = "none";
+                            if (img.nextSibling && img.nextSibling instanceof HTMLElement) {
+                              (img.nextSibling as HTMLElement).style.display = "flex";
+                            }
+                          }}
+                        />
+                        <div className="hidden w-full h-full bg-gray-200 rounded items-center justify-center text-gray-600 text-xs font-medium">
+                          {method.name.split(" ")[0]}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex-1">
-                      <div className="font-semibold text-lg flex items-center gap-2">
-                        {method.name}
-                        {!method.available && (
-                          <span className="text-xs bg-gray-600 text-gray-300 px-2 py-1 rounded-full">
-                            Unavailable
-                          </span>
+                      <div className="flex-1">
+                        <div className="font-semibold text-lg flex items-center gap-2">
+                          {method.name}
+                          {!method.available && (
+                            <span className="text-xs bg-gray-600 text-gray-300 px-2 py-1 rounded-full">
+                              Coming soon
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">{method.description}</div>
+                      </div>
+
+                      <div className="flex-shrink-0">
+                        {isSelected && method.available ? (
+                          <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
+                            <Check className="w-4 h-4 text-white" />
+                          </div>
+                        ) : (
+                          <div className={`w-6 h-6 rounded-full border-2 transition-colors duration-200 ${!method.available
+                            ? "border-gray-700"
+                            : "border-gray-600 group-hover:border-gray-500"
+                            }`}></div>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        {method.id === "paypal" &&
-                          "Pay securely with your PayPal account"}
-                        {method.id === "momo" && "Mobile wallet payment"}
-                        {method.id === "vnpay" && "Vietnamese payment gateway"}
-                        {method.id === "credit" && "Visa, Mastercard, and more"}
-                      </div>
-                    </div>
 
-                    <div className="flex-shrink-0">
-                      {selectedPaymentMethod === method.id && method.available ? (
-                        <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
-                          <Check className="w-4 h-4 text-white" />
-                        </div>
-                      ) : (
-                        <div className={`w-6 h-6 rounded-full border-2 transition-colors duration-200 ${!method.available
-                          ? "border-gray-700"
-                          : "border-gray-600 group-hover:border-gray-500"
-                          }`}></div>
+                      {isSelected && method.available && (
+                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-600/5 to-red-700/5 pointer-events-none"></div>
                       )}
                     </div>
-
-                    {selectedPaymentMethod === method.id && method.available && (
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-600/5 to-red-700/5 pointer-events-none"></div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -401,13 +456,15 @@ const CheckoutPage = () => {
               checkoutDetail={checkoutDetail}
               onConfirmPayment={() => handleConfirmPayment()}
               isFormValid={isFormValid()}
-              isProcessing={false}
+              isProcessing={isProcessing}
             />
           ) : (
-            // <></>
-            <TopUpComponent onConfirmPayment={() => handleConfirmPayment()}
-              topUpPlan={topupDetail} 
-              isFormValid={isFormValid()}/>
+            <TopUpComponent
+              onConfirmPayment={() => handleConfirmPayment()}
+              topUpPlan={topupDetail}
+              isFormValid={isFormValid()}
+              isProcessing={isProcessing}
+            />
           )}
         </div>
       </div>
@@ -438,3 +495,20 @@ const CheckoutPage = () => {
 };
 
 export default CheckoutPage;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

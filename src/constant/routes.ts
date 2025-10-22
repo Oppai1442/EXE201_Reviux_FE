@@ -39,6 +39,8 @@ export const ROUTES = {
             // Notification
             NOTIFICATION_MANAGEMENT: { path: 'notification/notification-management', label: 'Notification Management' },
 
+            MY_SUBSCRIPTIONS: { path: 'subscriptions/my-subscriptions', label: 'My Subscriptions' },
+
             // Ticket
             TICKET_MANAGEMENT: { path: 'ticket/ticket-management', label: 'Ticket Management' },
             MY_TICKET: { path: 'ticket/my-ticket', label: 'My Ticket' },

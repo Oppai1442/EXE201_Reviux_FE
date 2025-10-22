@@ -12,6 +12,7 @@ import {
   FileCog,
   FlaskConical,
   Workflow,
+  Receipt,
 } from 'lucide-react';
 import { useMemo, useState } from "react";
 import { ROUTES } from "@/constant/routes";
@@ -102,6 +103,12 @@ const DashboardLayout = () => {
           icon: ClipboardList
         }
       ]
+    },
+    {
+      id: ROUTES.DASHBOARD.child.MY_SUBSCRIPTIONS.path,
+      label: ROUTES.DASHBOARD.child.MY_SUBSCRIPTIONS.label,
+      icon: Receipt,
+      submenu: null,
     },
     {
       id: ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.path,
