@@ -41,6 +41,7 @@ export interface UserSubscription {
   customName: string | null;
   customDescription: string | null;
   customPrice: number | string | null;
+  billingPeriod: BillingPeriod | null;
   subscription: SubscriptionSummary | null;
 }
 

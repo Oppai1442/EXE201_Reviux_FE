@@ -49,6 +49,8 @@ export const ROUTES = {
             ACCOUNT_SETTINGS: { path: 'settings', label: 'Settings' },
             // SECURITY_SETTINGS: { path: 'settings/security', label: 'Security' },
             // NOTIFICATION_SETTINGS: { path: 'settings/notification', label: 'Notification' },
+
+            LOG: { path: 'log', label: 'Log' },
         }
     },
 

@@ -18,3 +18,5 @@ export { default as MySubscription } from './pages/my-subscriptions/MySubscripti
 export { default as AccountSettings } from './pages/settings/AccountSettings';
 export { default as SecuritySettings } from './pages/settings/SecuritySettings';
 export { default as NotificationSettings } from './pages/settings/NotificationSettings';
+
+export { default as Log } from './pages/Log/Log';

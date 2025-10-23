@@ -1,24 +1,46 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
-import { User, Settings, LogOut, Menu, X, Bell } from 'lucide-react';
+import { Link, useNavigate } from "react-router-dom";
+import { User, Settings, LogOut, Menu, X, Bell, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Assets } from "@/assets";
+import { useNotifications } from "@/context/NotificationContext";
+import { formatDistanceToNow } from "date-fns";
 
-const Navbar = ({ notifications = [], sidebarOpen, setSidebarOpen }) => {
+const Navbar = () => {
   const { loading, user, logOut, renderAuth, showAuthModal } = useAuth();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markManyAsRead,
+  } = useNotifications();
 
   const dropdownRef = useRef(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
 
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [isMenuOpen, setMenuOpen] = useState(false);
+  const [isNotificationOpen, setNotificationOpen] = useState(false);
+  const navigate = useNavigate();
 
   const toggleDropdown = () => setDropdownOpen((prev) => !prev);
   const toggleMenu = () => setMenuOpen((prev) => !prev);
+  const toggleNotification = () =>
+    setNotificationOpen((prev) => !prev);
 
   const handleClickOutside = useCallback((event) => {
     const target = event.target;
-    if (dropdownRef.current && !dropdownRef.current.contains(target)) {
+    if (
+      dropdownRef.current &&
+      !dropdownRef.current.contains(target)
+    ) {
       setDropdownOpen(false);
+    }
+    if (
+      notificationRef.current &&
+      !notificationRef.current.contains(target)
+    ) {
+      setNotificationOpen(false);
     }
   }, []);
 
@@ -27,13 +49,29 @@ const Navbar = ({ notifications = [], sidebarOpen, setSidebarOpen }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [handleClickOutside]);
 
-  const handleItemClick = (action) => {
+  const handleItemClick = (action?: string) => {
     if (action === "logout") {
       logOut();
     }
     setDropdownOpen(false);
     setMenuOpen(false);
   };
+
+  const handleNotificationClick = async (id: number, link?: string | null) => {
+    await markAsRead(id);
+    if (link) {
+      navigate(link);
+      setNotificationOpen(false);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    const unreadIds = notifications.filter((item) => !item.seen).map((item) => item.id);
+    if (unreadIds.length === 0) return;
+    await markManyAsRead(unreadIds);
+  };
+
+  const latestNotifications = notifications.slice(0, 5);
 
   const pathList = {
     home: "/",
@@ -115,14 +153,86 @@ const Navbar = ({ notifications = [], sidebarOpen, setSidebarOpen }) => {
             ) : user ? (
               <div className="flex items-center gap-3">
                 {/* Notification Button */}
-                <button className="relative p-2 hover:bg-gray-800/50 rounded-xl transition-colors group">
-                  <Bell className="w-5 h-5 text-gray-400 group-hover:text-cyan-400 transition-colors" />
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-cyan-400 text-gray-950 text-xs rounded-full flex items-center justify-center font-medium">
-                      {notifications.length}
-                    </span>
+                <div className="relative" ref={notificationRef}>
+                  <button
+                    onClick={toggleNotification}
+                    className="relative p-2 hover:bg-gray-800/50 rounded-xl transition-colors group"
+                  >
+                    <Bell className="w-5 h-5 text-gray-400 group-hover:text-cyan-400 transition-colors" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-cyan-400 text-gray-950 text-xs rounded-full flex items-center justify-center font-medium">
+                        {Math.min(unreadCount, 9)}
+                        {unreadCount > 9 && "+"}
+                      </span>
+                    )}
+                  </button>
+
+                  {isNotificationOpen && (
+                    <div className="absolute right-0 mt-3 w-80 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl shadow-cyan-500/10 border border-gray-800/50 z-50">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800/50">
+                        <div>
+                          <p className="text-sm text-white font-light">Notifications</p>
+                          <p className="text-xs text-gray-500 font-light">
+                            Bạn có {unreadCount} thông báo chưa đọc
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleMarkAllAsRead}
+                          className="text-xs text-cyan-400 hover:text-cyan-300 font-light"
+                        >
+                          Đánh dấu đã đọc
+                        </button>
+                      </div>
+
+                      <div className="max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700/50 hover:scrollbar-thumb-cyan-400/30">
+                        {latestNotifications.length === 0 ? (
+                          <div className="px-4 py-6 text-center text-gray-500 font-light text-sm">
+                            Không có thông báo nào
+                          </div>
+                        ) : (
+                          latestNotifications.map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => handleNotificationClick(item.id, item.link ?? undefined)}
+                              className={`w-full text-left px-4 py-3 border-b border-gray-800/30 last:border-b-0 hover:bg-gray-800/30 transition-all duration-300 ${
+                                !item.seen ? "bg-cyan-400/5 border-l-2 border-l-cyan-400" : ""
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm text-white font-light">{item.title}</p>
+                                  <p className="text-xs text-gray-400 font-light mt-1 line-clamp-2">
+                                    {item.message}
+                                  </p>
+                                </div>
+                                {!item.seen && (
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400">
+                                    <Check className="w-3 h-3" />
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-gray-500 font-light mt-2">
+                                {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                              </p>
+                            </button>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="px-4 py-3 border-t border-gray-800/50">
+                        <button
+                          onClick={() => {
+                            setNotificationOpen(false);
+                            navigate("/dashboard/notification");
+                          }}
+                          className="w-full text-sm font-light text-cyan-400 hover:text-cyan-300"
+                        >
+                          Xem tất cả
+                        </button>
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
 
                 <div ref={dropdownRef} className="relative flex items-center gap-2">
                   <button

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Context
 import { AuthProvider } from "./context/AuthContext";
 import { STOMPProvider } from "./context/STOMP";
+import { NotificationProvider } from "./context/NotificationContext";
 
 // Config & Constants
 import { routes } from "./routes";
@@ -48,14 +49,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <STOMPProvider>
       <AuthProvider>
-        {matchedConfig.showNav && (
-          <Navbar
-            sidebarOpen={false}
-            setSidebarOpen={() => {}}
-          />
-        )}
-        <main className={styles.mainContainer}>{children}</main>
-        {matchedConfig.showFooter && <Footer />}
+        <NotificationProvider>
+          {matchedConfig.showNav && <Navbar />}
+          <main className={styles.mainContainer}>{children}</main>
+          {matchedConfig.showFooter && <Footer />}
+        </NotificationProvider>
       </AuthProvider>
     </STOMPProvider>
   );

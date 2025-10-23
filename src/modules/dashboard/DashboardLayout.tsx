@@ -117,20 +117,14 @@ const DashboardLayout = () => {
       submenu: null,
     },
     {
-      id: "logs",
-      label: "Logs/Audit",
+      id: ROUTES.DASHBOARD.child.LOG.path,
+      label: ROUTES.DASHBOARD.child.LOG.label,
       icon: FileText,
       submenu: null,
       roles: ["ROLE_ADMIN"]
     },
   ];
 
-  const notifications = [
-    { id: 1, message: "Có 5 bài thi mới cần chấm điểm", time: "2 phút trước", unread: true },
-    { id: 2, message: "User john@example.com vừa đăng ký", time: "10 phút trước", unread: true },
-    { id: 3, message: "Hệ thống backup hoàn tất", time: "1 giờ trước", unread: false },
-    { id: 4, message: "Có ticket support mới #1234", time: "2 giờ trước", unread: true },
-  ];
 
 
   const allowedMenuItems = useMemo(() => {
@@ -181,7 +175,6 @@ const DashboardLayout = () => {
         <Navbar
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
-          notifications={notifications}
         />
         <Outlet />
       </div>

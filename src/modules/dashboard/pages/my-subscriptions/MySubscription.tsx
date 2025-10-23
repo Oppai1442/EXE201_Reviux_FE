@@ -289,8 +289,10 @@ const MySubscription: React.FC = () => {
         ? "Included in plan"
         : "—";
 
-  const billingPeriod = activeSubscription
-    ? formatBillingPeriod(activePlanDefinition?.billingPeriod ?? null)
+  const billingPeriod = activeSubscription?.billingPeriod
+    ? formatBillingPeriod(activeSubscription.billingPeriod)
+    : activeSubscription
+    ? formatBillingPeriod(activePlanDefinition?.billingPeriod ?? null) // Fallback to plan definition
     : "12-hour token refresh";
 
   const planFeatures: SubscriptionFeature[] = activeSubscription

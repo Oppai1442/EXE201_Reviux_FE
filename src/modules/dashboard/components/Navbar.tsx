@@ -8,13 +8,16 @@ import {
   Menu,
   X,
   Search,
-  CheckCircle
-} from 'lucide-react';
+  CheckCircle,
+  Check,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ROUTES } from "@/constant/routes";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from "@/context/NotificationContext";
+import { formatDistanceToNow } from "date-fns";
 
-const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
+const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const popupRef = useRef(null);
   const notificationRef = useRef(null);
@@ -23,10 +26,16 @@ const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const { loading, user, logOut } = useAuth();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markManyAsRead,
+  } = useNotifications();
+  const latestNotifications = notifications.slice(0, 10);
 
   const navigate = useNavigate();
 
-  const unreadCount = notifications.filter(n => n.unread).length;
 
   const handleClickOutside = useCallback((event) => {
     const target = event.target;
@@ -65,9 +74,18 @@ const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
     }
   }, []);
 
-  const markAllAsRead = () => {
-    // Handle mark all as read logic
-    console.log('Mark all as read');
+  const markAllAsRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.seen).map((n) => n.id);
+    if (unreadIds.length === 0) return;
+    await markManyAsRead(unreadIds);
+  };
+
+  const handleNotificationClick = async (notification) => {
+    await markAsRead(notification.id);
+    if (notification.link) {
+      navigate(notification.link);
+      setNotificationOpen(false);
+    }
   };
 
   const handleLogout = () => {
@@ -178,20 +196,45 @@ const Navbar = ({ sidebarOpen, setSidebarOpen, notifications }) => {
                     </button>
                   </div>
                   <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-700/50 hover:scrollbar-thumb-cyan-400/30">
-                    {notifications.map((notification, index) => (
-                      <div 
-                        key={notification.id} 
-                        className={`p-4 border-b border-gray-800/30 last:border-b-0 hover:bg-gray-800/30 transition-all duration-300 ${
-                          notification.unread 
-                            ? 'bg-cyan-400/5 border-l-2 border-l-cyan-400' 
-                            : ''
-                        }`}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        <p className="text-sm text-white font-light mb-2">{notification.message}</p>
-                        <p className="text-xs text-gray-500 font-light">{notification.time}</p>
+                    {latestNotifications.length === 0 ? (
+                      <div className="p-6 text-center text-gray-500 font-light text-sm">
+                        Không có thông báo nào
                       </div>
-                    ))}
+                    ) : (
+                      latestNotifications.map((notification, index) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`w-full text-left p-4 border-b border-gray-800/30 last:border-b-0 hover:bg-gray-800/30 transition-all duration-300 ${
+                            !notification.seen
+                              ? "bg-cyan-400/5 border-l-2 border-l-cyan-400"
+                              : ""
+                          }`}
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          <div className="flex items-start justify-between gap-3 mb-1">
+                            <p className="text-sm text-white font-light line-clamp-2">
+                              {notification.title}
+                            </p>
+                            {!notification.seen && (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                          {notification.message && (
+                            <p className="text-xs text-gray-400 font-light line-clamp-3 mb-2">
+                              {notification.message}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500 font-light">
+                            {formatDistanceToNow(new Date(notification.createdAt), {
+                              addSuffix: true,
+                            })}
+                          </p>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

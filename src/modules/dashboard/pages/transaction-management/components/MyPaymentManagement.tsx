@@ -172,7 +172,7 @@ const MyPaymentManagement = () => {
     return (
         <div className="relative min-h-screen bg-gray-950 text-white overflow-hidden">
             {/* Dynamic gradient background */}
-            <div 
+            <div
                 className="fixed inset-0 opacity-20 transition-all duration-700 pointer-events-none"
                 style={{
                     background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, #06b6d4 0%, transparent 50%)`
@@ -180,7 +180,7 @@ const MyPaymentManagement = () => {
             />
 
             {/* Grid pattern */}
-            <div 
+            <div
                 className="fixed inset-0 opacity-5 pointer-events-none"
                 style={{
                     backgroundImage: 'linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px)',
@@ -191,11 +191,10 @@ const MyPaymentManagement = () => {
 
             <div className="relative z-10 max-w-7xl mx-auto p-6 space-y-8">
                 {/* Header */}
-                <div 
+                <div
                     data-section="header"
-                    className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 transition-all duration-1000 ${
-                        visibleSections.has('header') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                    }`}
+                    className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 transition-all duration-1000 ${visibleSections.has('header') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                        }`}
                 >
                     <div>
                         <h1 className="text-5xl md:text-6xl font-light mb-3">
@@ -217,7 +216,7 @@ const MyPaymentManagement = () => {
                 </div>
 
                 {/* Stats Cards */}
-                <div 
+                <div
                     data-section="stats"
                     className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
                 >
@@ -227,28 +226,24 @@ const MyPaymentManagement = () => {
                         { label: 'Failed', value: summary.failedCount, icon: X, color: 'red' },
                         { label: 'Pending', value: summary.pendingCount, icon: Bell, color: 'yellow' }
                     ].map((stat, index) => (
-                        <div 
+                        <div
                             key={index}
-                            className={`bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 hover:border-cyan-400/50 hover:scale-105 transition-all duration-300 group ${
-                                visibleSections.has('stats') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                            }`}
+                            className={`bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-6 hover:border-cyan-400/50 hover:scale-105 transition-all duration-300 group ${visibleSections.has('stats') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                                }`}
                             style={{ transitionDelay: `${index * 100}ms` }}
                         >
                             <div className="flex items-center justify-between mb-4">
-                                <div className={`w-12 h-12 bg-gradient-to-br ${
-                                    stat.color === 'cyan' ? 'from-cyan-500/20 to-cyan-600/20 border-cyan-400/30' :
-                                    stat.color === 'red' ? 'from-red-500/20 to-red-600/20 border-red-400/30' :
-                                    'from-yellow-500/20 to-yellow-600/20 border-yellow-400/30'
-                                } border rounded-xl flex items-center justify-center shadow-lg ${
-                                    stat.color === 'cyan' ? 'shadow-cyan-500/20' :
-                                    stat.color === 'red' ? 'shadow-red-500/20' :
-                                    'shadow-yellow-500/20'
-                                } group-hover:shadow-${stat.color}-500/40 transition-all duration-300`}>
-                                    <stat.icon className={`h-6 w-6 ${
-                                        stat.color === 'cyan' ? 'text-cyan-400' :
-                                        stat.color === 'red' ? 'text-red-400' :
-                                        'text-yellow-400'
-                                    }`} />
+                                <div className={`w-12 h-12 bg-gradient-to-br ${stat.color === 'cyan' ? 'from-cyan-500/20 to-cyan-600/20 border-cyan-400/30' :
+                                        stat.color === 'red' ? 'from-red-500/20 to-red-600/20 border-red-400/30' :
+                                            'from-yellow-500/20 to-yellow-600/20 border-yellow-400/30'
+                                    } border rounded-xl flex items-center justify-center shadow-lg ${stat.color === 'cyan' ? 'shadow-cyan-500/20' :
+                                        stat.color === 'red' ? 'shadow-red-500/20' :
+                                            'shadow-yellow-500/20'
+                                    } group-hover:shadow-${stat.color}-500/40 transition-all duration-300`}>
+                                    <stat.icon className={`h-6 w-6 ${stat.color === 'cyan' ? 'text-cyan-400' :
+                                            stat.color === 'red' ? 'text-red-400' :
+                                                'text-yellow-400'
+                                        }`} />
                                 </div>
                             </div>
                             <div>
@@ -260,11 +255,10 @@ const MyPaymentManagement = () => {
                 </div>
 
                 {/* Transactions Table */}
-                <div 
+                <div
                     data-section="table"
-                    className={`bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-2xl overflow-hidden transition-all duration-1000 ${
-                        visibleSections.has('table') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                    }`}
+                    className={`bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-2xl overflow-hidden transition-all duration-1000 ${visibleSections.has('table') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                        }`}
                 >
                     <div className="px-6 py-5 border-b border-gray-800/50 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div className="flex items-center gap-4">
@@ -294,8 +288,8 @@ const MyPaymentManagement = () => {
                             <tbody className="divide-y divide-gray-800/30">
                                 {currentTransactions.length > 0 ? (
                                     currentTransactions.map((transaction, index) => (
-                                        <tr 
-                                            key={index} 
+                                        <tr
+                                            key={index}
                                             className="hover:bg-gray-800/20 transition-all duration-300 group"
                                             style={{ animationDelay: `${index * 50}ms` }}
                                         >
@@ -318,9 +312,8 @@ const MyPaymentManagement = () => {
                                                     transaction.description
                                                 )}
                                             </td>
-                                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-light ${
-                                                transaction.amount > 0 ? 'text-cyan-400' : 'text-red-400'
-                                            }`}>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-light ${transaction.amount > 0 ? 'text-cyan-400' : 'text-red-400'
+                                                }`}>
                                                 {formatAmount(transaction.amount)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 font-light">{transaction.paymentMethod}</td>
@@ -378,11 +371,10 @@ const MyPaymentManagement = () => {
                                         <button
                                             key={page}
                                             onClick={() => setCurrentPage(page)}
-                                            className={`px-4 py-2 rounded-lg text-sm font-light transition-all duration-300 ${
-                                                page === currentPage
+                                            className={`px-4 py-2 rounded-lg text-sm font-light transition-all duration-300 ${page === currentPage
                                                     ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/30'
                                                     : 'bg-gray-800/30 text-gray-300 hover:bg-gray-800/50 hover:text-white border border-gray-800/50 hover:border-cyan-400/50'
-                                            }`}
+                                                }`}
                                         >
                                             {page}
                                         </button>
@@ -399,18 +391,17 @@ const MyPaymentManagement = () => {
                             </div>
                         </div>
                     )}
-                <WalletTopupModal
-                    isOpen={openTopup}
-                    onClose={() => setOpenTopup(false)}
-                    onConfirm={(amount) => Deposit(amount)}
-                />
+                </div>
+
             </div>
-            </div>
+            
+            <WalletTopupModal
+                isOpen={openTopup}
+                onClose={() => setOpenTopup(false)}
+                onConfirm={(amount) => Deposit(amount)}
+            />
         </div>
     );
 };
 
 export default MyPaymentManagement;
-
-
-

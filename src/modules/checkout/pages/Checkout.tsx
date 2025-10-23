@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState, useRef } from "react";
 import {
   User,
   Mail,
@@ -8,6 +8,9 @@ import {
   Check,
   Loader2,
   Globe,
+  Lock,
+  CreditCard,
+  ArrowRight,
 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loading } from "@/components/Loading";
@@ -20,6 +23,7 @@ import {
 import { ROUTES } from "@/constant/routes";
 import type { checkoutDetail, TopUpPlan } from "../types";
 import CheckoutHandler from "../components/CheckoutHandler";
+
 interface CustomerInfo {
   fullName: string;
   email: string;
@@ -50,29 +54,15 @@ const PAYMENT_METHODS: PaymentMethodOption[] = [
   {
     id: "STRIPE",
     name: "International Cards (Stripe)",
-    image: "https://upload.wikimedia.org/wikipedia/commons/4/4e/Stripe_Logo%2C_revised_2016.svg",
+    image: "https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg",
     description: "Visa, Mastercard, AMEX, and global debit cards",
     available: true,
-  },
-  {
-    id: "PAYPAL",
-    name: "PayPal",
-    image: "https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg",
-    description: "Pay with your PayPal balance (coming soon)",
-    available: false,
   },
   {
     id: "MOMO",
     name: "MoMo Wallet",
     image: "https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png",
     description: "MoMo e-wallet in Vietnam (coming soon)",
-    available: false,
-  },
-  {
-    id: "CREDIT",
-    name: "Manual Credit Card",
-    image: "https://upload.wikimedia.org/wikipedia/commons/0/04/Visa.svg",
-    description: "Direct card processing (coming soon)",
     available: false,
   },
 ];
@@ -90,6 +80,7 @@ const CheckoutPage = () => {
     address: "",
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const navigate = useNavigate();
   const [topupDetail, setTopupDetail] = useState<TopUpPlan>({
     amount: 123,
@@ -102,6 +93,16 @@ const CheckoutPage = () => {
   })
   const [params] = useSearchParams();
   const selectedMethod = PAYMENT_METHODS.find((method) => method.id === selectedPaymentMethod);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Mouse tracking effect
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -170,8 +171,6 @@ const CheckoutPage = () => {
     fetchData();
   }, []);
 
-
-
   const handleInputChange = (field: CustomerInfoField, value: string) => {
     setCustomerInfo((prev: CustomerInfo) => ({ ...prev, [field]: value }));
   };
@@ -208,7 +207,6 @@ const CheckoutPage = () => {
     }
   };
 
-
   const isFormValid = () => {
     return Boolean(
       customerInfo.fullName &&
@@ -218,7 +216,6 @@ const CheckoutPage = () => {
       selectedMethod?.available
     );
   };
-
 
   if (isLoading) {
     return (
@@ -235,101 +232,110 @@ const CheckoutPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <div className="border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            Checkout
-          </h1>
+    <div ref={containerRef} className="min-h-screen bg-gray-950 text-white relative overflow-hidden">
+      {/* Dynamic gradient background that follows mouse */}
+      <div 
+        className="fixed inset-0 pointer-events-none transition-opacity duration-500"
+        style={{
+          background: `radial-gradient(600px circle at ${mousePosition.x}px ${mousePosition.y}px, rgba(6, 182, 212, 0.08), transparent 40%)`
+        }}
+      />
+      
+      {/* Subtle grid pattern */}
+      <div className="fixed inset-0 pointer-events-none opacity-20" style={{
+        backgroundImage: `linear-gradient(rgba(6, 182, 212, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(6, 182, 212, 0.1) 1px, transparent 1px)`,
+        backgroundSize: '50px 50px'
+      }} />
+
+      {/* Header with backdrop blur */}
+      <div className="sticky top-0 z-50 border-b border-gray-800/50 backdrop-blur-xl bg-gray-950/80">
+        <div className="max-w-7xl mx-auto px-6 py-5">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-light">
+              Secure <span className="text-cyan-400">Checkout</span>
+            </h1>
+            <div className="flex items-center gap-2 text-sm text-gray-400 font-light">
+              <Lock className="w-4 h-4 text-cyan-400" />
+              <span>256-bit encryption</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Left Side - Customer Info & Payment */}
-          <div className="space-y-8">
+          <div className="lg:col-span-3 space-y-6">
             {/* Customer Information */}
-            <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 hover:border-gray-700 transition-all duration-300">
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  Customer Information
-                </h2>
-                <p className="text-gray-400">
-                  Please fill in your details to complete the order
+            <div className="group relative bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-3xl p-8 hover:border-cyan-400/30 transition-all duration-500">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              
+              <div className="relative mb-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-400/10 flex items-center justify-center">
+                    <User className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <h2 className="text-2xl font-light text-white">
+                    Customer Information
+                  </h2>
+                </div>
+                <p className="text-gray-400 font-light ml-13">
+                  Please provide your details below
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="relative grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300 block">
-                    Full Name *
+                  <label className="text-xs font-light text-gray-400 uppercase tracking-wider block">
+                    Full Name
                   </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <User className="w-5 h-5 text-gray-400 group-focus-within:text-red-400 transition-colors duration-200" />
-                    </div>
+                  <div className="relative group/input">
                     <input
                       type="text"
-                      placeholder="Enter your full name"
+                      placeholder="John Doe"
                       value={customerInfo.fullName}
-                      onChange={(e) =>
-                        handleInputChange("fullName", e.target.value)
-                      }
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-white placeholder-gray-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none transition-all duration-200"
+                      onChange={(e) => handleInputChange("fullName", e.target.value)}
+                      className="w-full bg-gray-800/30 border border-gray-700/50 rounded-xl px-4 py-4 text-white font-light placeholder-gray-600 focus:border-cyan-400/50 focus:bg-gray-800/50 focus:outline-none transition-all duration-300"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300 block">
-                    Email Address *
+                  <label className="text-xs font-light text-gray-400 uppercase tracking-wider block">
+                    Email Address
                   </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <Mail className="w-5 h-5 text-gray-400 group-focus-within:text-red-400 transition-colors duration-200" />
-                    </div>
+                  <div className="relative group/input">
                     <input
                       type="email"
-                      placeholder="Enter your email"
+                      placeholder="john@example.com"
                       value={customerInfo.email}
-                      onChange={(e) =>
-                        handleInputChange("email", e.target.value)
-                      }
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-white placeholder-gray-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none transition-all duration-200"
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      className="w-full bg-gray-800/30 border border-gray-700/50 rounded-xl px-4 py-4 text-white font-light placeholder-gray-600 focus:border-cyan-400/50 focus:bg-gray-800/50 focus:outline-none transition-all duration-300"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300 block">
-                    Phone Number *
+                  <label className="text-xs font-light text-gray-400 uppercase tracking-wider block">
+                    Phone Number
                   </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <Phone className="w-5 h-5 text-gray-400 group-focus-within:text-red-400 transition-colors duration-200" />
-                    </div>
+                  <div className="relative group/input">
                     <input
                       type="number"
-                      placeholder="Enter your phone number"
+                      placeholder="+84 123 456 789"
                       value={customerInfo.phone}
-                      onChange={(e) =>
-                        handleInputChange("phone", e.target.value)
-                      }
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-white placeholder-gray-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none transition-all duration-200"
+                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      className="w-full bg-gray-800/30 border border-gray-700/50 rounded-xl px-4 py-4 text-white font-light placeholder-gray-600 focus:border-cyan-400/50 focus:bg-gray-800/50 focus:outline-none transition-all duration-300"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300 block">
+                  <label className="text-xs font-light text-gray-400 uppercase tracking-wider block">
                     Country/Region
                   </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <Globe className="w-5 h-5 text-gray-400 group-focus-within:text-red-400 transition-colors duration-200" />
-                    </div>
-                    <select className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none transition-all duration-200 appearance-none">
+                  <div className="relative group/input">
+                    <select className="w-full bg-gray-800/30 border border-gray-700/50 rounded-xl px-4 py-4 text-white font-light focus:border-cyan-400/50 focus:bg-gray-800/50 focus:outline-none transition-all duration-300 appearance-none cursor-pointer">
                       <option value="VN">Vietnam</option>
                       <option value="US">United States</option>
                       <option value="SG">Singapore</option>
@@ -337,67 +343,67 @@ const CheckoutPage = () => {
                     </select>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-6 space-y-2">
-                <label className="text-sm font-medium text-gray-300 block">
-                  Address *
-                </label>
-                <div className="relative group">
-                  <div className="absolute top-4 left-0 pl-4 flex items-start pointer-events-none">
-                    <MapPin className="w-5 h-5 text-gray-400 group-focus-within:text-red-400 transition-colors duration-200" />
-                  </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-xs font-light text-gray-400 uppercase tracking-wider block">
+                    Full Address
+                  </label>
                   <textarea
-                    placeholder="Enter your full address"
+                    placeholder="123 Main Street, District 1, Ho Chi Minh City"
                     value={customerInfo.address}
-                    onChange={(e) =>
-                      handleInputChange("address", e.target.value)
-                    }
+                    onChange={(e) => handleInputChange("address", e.target.value)}
                     rows={3}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-white placeholder-gray-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none transition-all duration-200 resize-none"
+                    className="w-full bg-gray-800/30 border border-gray-700/50 rounded-xl px-4 py-4 text-white font-light placeholder-gray-600 focus:border-cyan-400/50 focus:bg-gray-800/50 focus:outline-none transition-all duration-300 resize-none"
                   />
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                <Shield className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                <div className="text-sm">
-                  <span className="text-blue-400 font-medium">
-                    Your information is secure.
-                  </span>
-                  <span className="text-blue-300/70 ml-1">
-                    We use industry-standard encryption to protect your data.
+              <div className="relative mt-6 flex items-start gap-3 p-4 bg-cyan-400/5 border border-cyan-400/20 rounded-xl">
+                <Shield className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm font-light">
+                  <span className="text-cyan-400">Your data is protected.</span>
+                  <span className="text-gray-400 ml-1">
+                    We use enterprise-grade encryption to secure your information.
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Payment Methods */}
-            <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 hover:border-gray-700 transition-all duration-300">
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  Payment Method
-                </h2>
-                <p className="text-gray-400">
-                  Choose your preferred payment option
+            <div className="group relative bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-3xl p-8 hover:border-cyan-400/30 transition-all duration-500">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              
+              <div className="relative mb-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-400/10 flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <h2 className="text-2xl font-light text-white">
+                    Payment Method
+                  </h2>
+                </div>
+                <p className="text-gray-400 font-light ml-13">
+                  Select your preferred payment option
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                {PAYMENT_METHODS.map((method) => {
+              <div className="relative space-y-3">
+                {PAYMENT_METHODS.map((method, index) => {
                   const isSelected = selectedPaymentMethod === method.id;
                   return (
                     <div
                       key={method.id}
                       onClick={() => method.available && setSelectedPaymentMethod(method.id)}
-                      className={`group relative flex items-center gap-4 p-5 rounded-xl border transition-all duration-200 ${!method.available
-                        ? "opacity-50 cursor-not-allowed bg-gray-800/20 border-gray-700/50"
-                        : isSelected
-                          ? "bg-red-500/10 border-red-500/50 text-white shadow-lg shadow-red-500/10 cursor-pointer"
-                          : "bg-gray-800/30 border-gray-700 text-gray-400 hover:border-gray-600 hover:bg-gray-800/50 cursor-pointer"
-                        }`}
+                      style={{ animationDelay: `${index * 50}ms` }}
+                      className={`group/method relative flex items-center gap-4 p-5 rounded-2xl border transition-all duration-300 ${
+                        !method.available
+                          ? "opacity-40 cursor-not-allowed bg-gray-800/10 border-gray-800/30"
+                          : isSelected
+                          ? "bg-cyan-400/10 border-cyan-400/50 shadow-lg shadow-cyan-500/10 cursor-pointer scale-[1.02]"
+                          : "bg-gray-800/20 border-gray-800/50 hover:border-gray-700 hover:bg-gray-800/30 cursor-pointer hover:scale-[1.01]"
+                      }`}
                     >
-                      <div className="flex-shrink-0 w-12 h-12 bg-white rounded-lg p-2 flex items-center justify-center">
+                      <div className="flex-shrink-0 w-14 h-14 bg-white/95 rounded-xl p-2.5 flex items-center justify-center shadow-sm">
                         <img
                           src={method.image}
                           alt={method.name}
@@ -415,33 +421,34 @@ const CheckoutPage = () => {
                         </div>
                       </div>
 
-                      <div className="flex-1">
-                        <div className="font-semibold text-lg flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-light text-base flex items-center gap-2 text-white">
                           {method.name}
                           {!method.available && (
-                            <span className="text-xs bg-gray-600 text-gray-300 px-2 py-1 rounded-full">
-                              Coming soon
+                            <span className="text-xs bg-gray-700/50 text-gray-400 px-2 py-0.5 rounded-full font-light">
+                              Soon
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-gray-500 mt-1">{method.description}</div>
+                        <div className="text-sm text-gray-500 font-light mt-0.5">{method.description}</div>
                       </div>
 
                       <div className="flex-shrink-0">
                         {isSelected && method.available ? (
-                          <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
-                            <Check className="w-4 h-4 text-white" />
+                          <div className="w-6 h-6 rounded-full bg-cyan-400 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+                            <Check className="w-4 h-4 text-gray-950" strokeWidth={3} />
                           </div>
                         ) : (
-                          <div className={`w-6 h-6 rounded-full border-2 transition-colors duration-200 ${!method.available
-                            ? "border-gray-700"
-                            : "border-gray-600 group-hover:border-gray-500"
-                            }`}></div>
+                          <div className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ${
+                            !method.available
+                              ? "border-gray-700/50"
+                              : "border-gray-600 group-hover/method:border-cyan-400/50"
+                          }`}></div>
                         )}
                       </div>
 
                       {isSelected && method.available && (
-                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-600/5 to-red-700/5 pointer-events-none"></div>
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-400/5 to-transparent pointer-events-none"></div>
                       )}
                     </div>
                   );
@@ -451,41 +458,49 @@ const CheckoutPage = () => {
           </div>
 
           {/* Right Side - Product Details */}
-          {checkoutDetail.checkoutType == "SUBSCRIPTION" ? (
-            <SubscriptionSummary
-              checkoutDetail={checkoutDetail}
-              onConfirmPayment={() => handleConfirmPayment()}
-              isFormValid={isFormValid()}
-              isProcessing={isProcessing}
-            />
-          ) : (
-            <TopUpComponent
-              onConfirmPayment={() => handleConfirmPayment()}
-              topUpPlan={topupDetail}
-              isFormValid={isFormValid()}
-              isProcessing={isProcessing}
-            />
-          )}
+          <div className="lg:col-span-2">
+            {checkoutDetail.checkoutType == "SUBSCRIPTION" ? (
+              <SubscriptionSummary
+                checkoutDetail={checkoutDetail}
+                onConfirmPayment={() => handleConfirmPayment()}
+                isFormValid={isFormValid()}
+                isProcessing={isProcessing}
+              />
+            ) : (
+              <TopUpComponent
+                onConfirmPayment={() => handleConfirmPayment()}
+                topUpPlan={topupDetail}
+                isFormValid={isFormValid()}
+                isProcessing={isProcessing}
+              />
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Processing Popup */}
+      {/* Processing Overlay with modern design */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-white animate-spin" />
-            </div>
-            <h3 className="text-xl font-bold text-white mb-3">
-              Processing Payment
-            </h3>
-            <p className="text-gray-400 mb-6">
-              Please wait while we securely process your payment. This may take
-              a few moments.
-            </p>
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-              <Globe className="w-4 h-4" />
-              Waiting for payment confirmation...
+        <div className="fixed inset-0 bg-gray-950/90 backdrop-blur-xl z-50 flex items-center justify-center">
+          <div className="relative bg-gray-900/50 border border-gray-800/50 backdrop-blur-sm rounded-3xl p-10 max-w-md w-full mx-4 text-center">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent rounded-3xl" />
+            
+            <div className="relative">
+              <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+                <Loader2 className="w-10 h-10 text-white animate-spin" strokeWidth={2} />
+              </div>
+              
+              <h3 className="text-2xl font-light text-white mb-3">
+                Processing Payment
+              </h3>
+              
+              <p className="text-gray-400 font-light mb-8 leading-relaxed">
+                Securely connecting to payment gateway. Please do not close this window.
+              </p>
+              
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-500 font-light">
+                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+                <span>Awaiting confirmation</span>
+              </div>
             </div>
           </div>
         </div>
@@ -495,20 +510,3 @@ const CheckoutPage = () => {
 };
 
 export default CheckoutPage;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
