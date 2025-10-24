@@ -13,6 +13,7 @@ import {
   FlaskConical,
   Workflow,
   Receipt,
+  Bell,
 } from 'lucide-react';
 import { useMemo, useState } from "react";
 import { ROUTES } from "@/constant/routes";
@@ -108,6 +109,12 @@ const DashboardLayout = () => {
       id: ROUTES.DASHBOARD.child.MY_SUBSCRIPTIONS.path,
       label: ROUTES.DASHBOARD.child.MY_SUBSCRIPTIONS.label,
       icon: Receipt,
+      submenu: null,
+    },
+    {
+      id: ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.path,
+      label: ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.label,
+      icon: Bell,
       submenu: null,
     },
     {

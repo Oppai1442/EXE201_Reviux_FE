@@ -9,7 +9,11 @@ import React, {
 } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSTOMP } from "@/context/STOMP";
-import notificationService from "@/services/notification/notificationService";
+import {
+  deleteNotificationAPI,
+  fetchUserNotificationsAPI,
+  markNotificationAsReadAPI,
+} from "@/services/notification/notificationService";
 import type {
   NotificationDTO,
   NotificationItem,
@@ -100,7 +104,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
         setLoading(true);
         setError(null);
         const response: PageResponse<NotificationDTO> =
-          await notificationService.fetchUserNotifications(user.id, params);
+          await fetchUserNotificationsAPI(user.id, params);
         currentPageRef.current = params;
 
         const items = response.content.map(mapNotification);
@@ -164,7 +168,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const markAsRead = useCallback(async (id: number) => {
     try {
-      await notificationService.markAsRead(id);
+      await markNotificationAsReadAPI(id);
       setNotifications((prev) =>
         prev.map((item) =>
           item.id === id
@@ -186,7 +190,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const deleteNotification = useCallback(async (id: number) => {
     try {
-      await notificationService.deleteNotification(id);
+      await deleteNotificationAPI(id);
       setNotifications((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
       console.error("Failed to delete notification", err);

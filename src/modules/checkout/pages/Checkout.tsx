@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   User,
   Mail,
@@ -11,11 +11,12 @@ import {
   Lock,
   CreditCard,
   ArrowRight,
+  Wallet,
 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loading } from "@/components/Loading";
 import { toast } from "react-hot-toast";
-import { checkoutStripeConfirm, checkoutVnpayConfirm, getCheckoutDetailAPI, initiatePaymentAPI } from "../services/checkout";
+import { checkoutStripeConfirm, checkoutVnpayConfirm, getCheckoutDetailAPI, getWalletBalanceAPI, initiatePaymentAPI } from "../services/checkout";
 import {
   SubscriptionSummary,
   TopUpComponent,
@@ -33,7 +34,7 @@ interface CustomerInfo {
 
 type CustomerInfoField = keyof CustomerInfo;
 
-type PaymentMethodId = "VNPAY" | "STRIPE" | "PAYPAL" | "MOMO" | "CREDIT";
+type PaymentMethodId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "PAYPAL" | "MOMO" | "CREDIT";
 
 interface PaymentMethodOption {
   id: PaymentMethodId;
@@ -43,7 +44,7 @@ interface PaymentMethodOption {
   available: boolean;
 }
 
-const PAYMENT_METHODS: PaymentMethodOption[] = [
+const BASE_PAYMENT_METHODS: PaymentMethodOption[] = [
   {
     id: "VNPAY",
     name: "VNPay",
@@ -67,11 +68,10 @@ const PAYMENT_METHODS: PaymentMethodOption[] = [
   },
 ];
 
+
 const CheckoutPage = () => {
   const { id = "" } = useParams();
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodId | undefined>(() =>
-    PAYMENT_METHODS.find((method) => method.available)?.id,
-  );
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodId | undefined>(undefined)
   const [isProcessing, setIsProcessing] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     fullName: "",
@@ -91,8 +91,91 @@ const CheckoutPage = () => {
     checkoutType: "SUBSCRIPTION",
     checkoutStatus: "UNKNOWN",
   })
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [isWalletLoading, setIsWalletLoading] = useState(false)
+  const [walletError, setWalletError] = useState<string | null>(null)
+
+  const fetchCheckoutDetail = useCallback(async () => {
+    const response = await getCheckoutDetailAPI(id ?? "");
+    setCheckoutDetail(response);
+
+    if (response.checkoutType === "TOPUP") {
+      setTopupDetail({
+        amount: response.topupAmount || 0,
+        currency: "USD",
+      });
+    }
+  }, [id]);
+
+  const fetchWalletBalance = useCallback(async () => {
+    try {
+      setIsWalletLoading(true);
+      setWalletError(null);
+      const balanceResponse = await getWalletBalanceAPI();
+      const normalized = typeof balanceResponse === "number" ? balanceResponse : Number(balanceResponse ?? 0);
+      console.log(balanceResponse)
+      setWalletBalance(Number.isFinite(normalized) ? normalized : 0);
+    } catch (err) {
+      console.error("Failed to fetch wallet balance:", err);
+      setWalletError("Failed to load wallet balance.");
+      setWalletBalance(null);
+    } finally {
+      setIsWalletLoading(false);
+    }
+  }, []);
   const [params] = useSearchParams();
-  const selectedMethod = PAYMENT_METHODS.find((method) => method.id === selectedPaymentMethod);
+  const amountDue = useMemo(() => {
+    if (checkoutDetail.checkoutType === "TOPUP") {
+      return topupDetail.amount || 0;
+    }
+    const finalPrice = checkoutDetail.subscription?.finalPrice ?? 0;
+    const numericFinalPrice = typeof finalPrice === "number" ? finalPrice : Number(finalPrice ?? 0);
+    return Number.isFinite(numericFinalPrice) ? numericFinalPrice : 0;
+  }, [checkoutDetail, topupDetail]);
+
+  const paymentMethods = useMemo<PaymentMethodOption[]>(() => {
+    const baseMethods = BASE_PAYMENT_METHODS.map((method) => ({ ...method }));
+    const walletAvailable =
+      checkoutDetail.checkoutType === "SUBSCRIPTION" &&
+      walletBalance !== null &&
+      walletBalance >= amountDue;
+
+    const walletDescription = (() => {
+      if (checkoutDetail.checkoutType !== "SUBSCRIPTION") {
+        return "Available for subscription purchases only.";
+      }
+      if (walletBalance === null) {
+        return "Checking your balance...";
+      }
+      if (walletAvailable) {
+        return "Pay instantly using your account balance.";
+      }
+      return `Insufficient balance. Requires ${amountDue.toLocaleString()} credits.`;
+    })();
+
+    const walletOption: PaymentMethodOption = {
+      id: "ACCOUNT_BALANCE",
+      name: "Account Balance",
+      image: "",
+      description: walletDescription,
+      available: walletAvailable,
+    };
+
+    return [walletOption, ...baseMethods];
+  }, [amountDue, checkoutDetail.checkoutType, walletBalance]);
+
+  useEffect(() => {
+    const current = paymentMethods.find((method) => method.id === selectedPaymentMethod);
+    if (current?.available) {
+      return;
+    }
+    const fallback = paymentMethods.find((method) => method.available);
+    if (fallback && fallback.id !== selectedPaymentMethod) {
+      setSelectedPaymentMethod(fallback.id);
+    }
+  }, [paymentMethods, selectedPaymentMethod]);
+
+  const selectedMethod = paymentMethods.find((method) => method.id === selectedPaymentMethod);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Mouse tracking effect
@@ -106,6 +189,7 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       const basePath = `/checkout/${id}`;
       const providerParam = (params.get("provider") ?? params.get("platform") ?? "").toLowerCase();
       const statusParam = params.get("status")?.toLowerCase();
@@ -152,15 +236,7 @@ const CheckoutPage = () => {
       }
 
       try {
-        const response = await getCheckoutDetailAPI(id);
-        setCheckoutDetail(response);
-
-        if (response.checkoutType === "TOPUP") {
-          setTopupDetail({
-            amount: response.topupAmount || 0,
-            currency: "USD",
-          });
-        }
+        await fetchCheckoutDetail();
       } catch (err) {
         console.error("Failed to fetch checkout detail:", err);
       } finally {
@@ -168,8 +244,12 @@ const CheckoutPage = () => {
       }
     };
 
-    fetchData();
-  }, []);
+    void fetchData();
+  }, [fetchCheckoutDetail, id, params]);
+
+  useEffect(() => {
+    void fetchWalletBalance();
+  }, [fetchWalletBalance]);
 
   const handleInputChange = (field: CustomerInfoField, value: string) => {
     setCustomerInfo((prev: CustomerInfo) => ({ ...prev, [field]: value }));
@@ -186,6 +266,27 @@ const CheckoutPage = () => {
       return;
     }
 
+    const isAccountBalance = selectedPaymentMethod === "ACCOUNT_BALANCE";
+
+    if (isAccountBalance) {
+      if (checkoutDetail.checkoutType !== "SUBSCRIPTION") {
+        toast.error("Account balance can only be used for subscription payments.");
+        return;
+      }
+      if (walletBalance === null) {
+        toast.error("Unable to load your wallet balance. Please try again.");
+        return;
+      }
+      if (amountDue <= 0) {
+        toast.error("Invalid payment amount.");
+        return;
+      }
+      if (walletBalance < amountDue) {
+        toast.error("Insufficient balance. Please choose another payment method.");
+        return;
+      }
+    }
+
     setIsProcessing(true);
 
     try {
@@ -194,6 +295,14 @@ const CheckoutPage = () => {
         paymentMethod: selectedPaymentMethod,
         customerInfo,
       });
+
+      if (isAccountBalance) {
+        await fetchCheckoutDetail();
+        await fetchWalletBalance();
+        setIsProcessing(false);
+        toast.success("Payment completed using account balance.");
+        return;
+      }
 
       if (response?.paymentUrl) {
         window.location.href = response.paymentUrl;
@@ -388,7 +497,7 @@ const CheckoutPage = () => {
               </div>
 
               <div className="relative space-y-3">
-                {PAYMENT_METHODS.map((method, index) => {
+                {paymentMethods.map((method, index) => {
                   const isSelected = selectedPaymentMethod === method.id;
                   return (
                     <div
@@ -404,21 +513,21 @@ const CheckoutPage = () => {
                       }`}
                     >
                       <div className="flex-shrink-0 w-14 h-14 bg-white/95 rounded-xl p-2.5 flex items-center justify-center shadow-sm">
-                        <img
-                          src={method.image}
-                          alt={method.name}
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            const img = e.target as HTMLImageElement;
-                            img.style.display = "none";
-                            if (img.nextSibling && img.nextSibling instanceof HTMLElement) {
-                              (img.nextSibling as HTMLElement).style.display = "flex";
-                            }
-                          }}
-                        />
-                        <div className="hidden w-full h-full bg-gray-200 rounded items-center justify-center text-gray-600 text-xs font-medium">
-                          {method.name.split(" ")[0]}
-                        </div>
+                        {method.image ? (
+                          <img
+                            src={method.image}
+                            alt={method.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              const img = e.target as HTMLImageElement;
+                              img.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-900/5 rounded flex items-center justify-center">
+                            <Wallet className="w-5 h-5 text-cyan-400" />
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -426,11 +535,22 @@ const CheckoutPage = () => {
                           {method.name}
                           {!method.available && (
                             <span className="text-xs bg-gray-700/50 text-gray-400 px-2 py-0.5 rounded-full font-light">
-                              Soon
+                              {method.id === "ACCOUNT_BALANCE" ? "Insufficient" : "Soon"}
                             </span>
                           )}
                         </div>
                         <div className="text-sm text-gray-500 font-light mt-0.5">{method.description}</div>
+                        {method.id === "ACCOUNT_BALANCE" && (
+                          <div className="text-xs font-light mt-1">
+                            {walletError ? (
+                              <span className="text-red-400">{walletError}</span>
+                            ) : isWalletLoading ? (
+                              <span className="text-gray-500">Checking balance...</span>
+                            ) : (
+                              <span className="text-gray-400">Available: {walletBalance !== null ? walletBalance.toLocaleString() : "0"} credits</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex-shrink-0">

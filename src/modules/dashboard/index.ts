@@ -12,6 +12,8 @@ export { default as TransactionManagement } from './pages/transaction-management
 export { default as MyRequest } from './pages/testing-request/MyRequests';
 export { default as RequestManagement } from './pages/testing-request/RequestManagement';
 
+export { default as NotificationManagement } from './pages/notification/NotificationPage'
+
 export { default as MySubscription } from './pages/my-subscriptions/MySubscription';
 
 //settings

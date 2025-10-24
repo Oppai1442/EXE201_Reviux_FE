@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation, matchPath } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -20,6 +20,63 @@ import { Loading } from "@/components/Loading"; // Thêm import này
 // Styles
 import styles from "./styles/App.module.css";
 import RequireAuth from "./components/RequireAuth/RequireAuth";
+
+type RouteLabelEntry = {
+  path: string;
+  label: string;
+};
+
+const buildRouteLabelEntries = (): RouteLabelEntry[] => {
+  const entries: RouteLabelEntry[] = [];
+
+  Object.values(ROUTES).forEach((route: any) => {
+    if (!route || typeof route !== "object") {
+      return;
+    }
+
+    if (route.path && route.label) {
+      entries.push({ path: route.path, label: route.label });
+    }
+
+    if (route.child && typeof route.child === "object") {
+      Object.values(route.child).forEach((child: any) => {
+        if (!child || typeof child !== "object" || !child.path || !child.label) {
+          return;
+        }
+
+        const childPath =
+          child.path.startsWith("/") || !route.path
+            ? child.path
+            : `${route.path.replace(/\/$/, "")}/${child.path}`;
+
+        entries.push({ path: childPath, label: child.label });
+      });
+    }
+  });
+
+  return entries.sort((a, b) => b.path.length - a.path.length);
+};
+
+const ROUTE_LABEL_ENTRIES = buildRouteLabelEntries();
+
+const getRouteLabel = (pathname: string): string => {
+  for (const entry of ROUTE_LABEL_ENTRIES) {
+    const matched = matchPath({ path: entry.path, end: true }, pathname);
+    if (matched) {
+      return entry.label;
+    }
+  }
+
+  if (ROUTES.NOT_FOUND?.label) {
+    return ROUTES.NOT_FOUND.label;
+  }
+
+  if (typeof document !== "undefined") {
+    return document.title ?? "";
+  }
+
+  return "";
+};
 
 const client = new QueryClient({
   defaultOptions: {
@@ -45,6 +102,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       break;
     }
   }
+
+  useEffect(() => {
+    const label = getRouteLabel(location.pathname);
+    if (typeof document !== "undefined" && label) {
+      document.title = label;
+    }
+  }, [location.pathname]);
 
   return (
     <STOMPProvider>

@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Assets } from "@/assets";
 import { useNotifications } from "@/context/NotificationContext";
 import { formatDistanceToNow } from "date-fns";
+import { ROUTES } from "@/constant/routes";
 
 const Navbar = () => {
   const { loading, user, logOut, renderAuth, showAuthModal } = useAuth();
@@ -223,7 +224,7 @@ const Navbar = () => {
                         <button
                           onClick={() => {
                             setNotificationOpen(false);
-                            navigate("/dashboard/notification");
+                            navigate(ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.getPath());
                           }}
                           className="w-full text-sm font-light text-cyan-400 hover:text-cyan-300"
                         >

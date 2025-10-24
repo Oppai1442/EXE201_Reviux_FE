@@ -24,7 +24,7 @@ type FilterType =
   | "success"
   | "error";
 
-const NotificationPage: React.FC = () => {
+const NotificationPage = () => {
   const {
     notifications,
     loading,
@@ -504,22 +504,6 @@ const NotificationPage: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-
-      <div className="fixed bottom-6 right-6 flex flex-col items-end gap-4">
-        <div className="px-4 py-3 bg-gray-900/90 backdrop-blur-xl border border-gray-800/60 rounded-2xl shadow-2xl shadow-cyan-500/10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
-            <Bell className="w-5 h-5 text-cyan-400" />
-          </div>
-          <div>
-            <p className="text-sm text-white font-light">
-              Stay up to date with real-time notifications
-            </p>
-            <p className="text-xs text-gray-500 font-light">
-              Automatically syncs across dashboard and header
-            </p>
-          </div>
-        </div>
       </div>
 
       <style jsx>{`

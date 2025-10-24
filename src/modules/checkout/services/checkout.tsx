@@ -22,3 +22,8 @@ export const checkoutStripeConfirm = async(req: { checkoutId: string; sessionId:
     const response = await postData<checkoutConfirmRedirectResponse>('/checkout/stripe/confirm', req)
     return response
 }
+
+export const getWalletBalanceAPI = async () => {
+    const response = await getData<number>('/wallet/balance')
+    return response.data
+}

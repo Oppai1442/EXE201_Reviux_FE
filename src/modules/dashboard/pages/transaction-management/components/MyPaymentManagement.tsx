@@ -59,7 +59,7 @@ const MyPaymentManagement = () => {
 
             setTransactions(historyResponse?.content ?? []);
             setTotalResult(historyResponse?.totalElements ?? 0);
-            setSummary(transactionSummary ?? {
+            setSummary((transactionSummary as { failedCount: number; pendingCount: number; successCount: number; totalAmount: number }) ?? {
                 failedCount: 0,
                 pendingCount: 0,
                 successCount: 0,
