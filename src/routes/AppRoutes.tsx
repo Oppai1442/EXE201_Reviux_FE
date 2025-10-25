@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { lazy, Suspense, type ReactNode } from 'react';
 import { ROUTES } from '@/constant/routes';
 import { CheckoutPage } from '@/modules/checkout';
-import { Log, MyRequest, MySubscription, NotificationManagement, RequestManagement, TransactionManagement } from '@/modules/dashboard';
+import { Log, MyRequest, MySubscription, MyTicket, NotificationManagement, RequestManagement, TransactionManagement } from '@/modules/dashboard';
 
 // Lazy load components
 const Home = lazy(() => import('@/modules/home'));
@@ -73,6 +73,8 @@ const routes: AppRoute[] = [
       { path: ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.path, element: <NotificationManagement /> },
 
       { path: ROUTES.DASHBOARD.child.MY_SUBSCRIPTIONS.path, element: <MySubscription />},
+
+      { path: ROUTES.DASHBOARD.child.MY_TICKET.path, element: <MyTicket />},
       
       //Settings
       { path: ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.path, element: <AccountSettings /> },

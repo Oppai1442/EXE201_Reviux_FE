@@ -16,6 +16,8 @@ export { default as NotificationManagement } from './pages/notification/Notifica
 
 export { default as MySubscription } from './pages/my-subscriptions/MySubscription';
 
+export { default as MyTicket } from './pages/ticket/MyTicket'
+
 //settings
 export { default as AccountSettings } from './pages/settings/AccountSettings';
 export { default as SecuritySettings } from './pages/settings/SecuritySettings';
