@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { 
   User, 
   Mail, 
@@ -11,12 +11,16 @@ import {
   Trash2, 
   Activity, 
   MapPin,
-  CheckCircle
+  CheckCircle,
+  Link2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 import { getAccountDataAPI, saveData } from './services/AccountSettings';
 import type { AccountDataResponse, UserUpdateProfile } from './types';
+
+const DEFAULT_AVATAR_URL =
+  "https://static.vecteezy.com/system/resources/previews/009/292/244/non_2x/default-avatar-icon-of-social-media-user-vector.jpg";
 
 const AccountSettings = () => {
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
@@ -24,6 +28,7 @@ const AccountSettings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [visibleSections, setVisibleSections] = useState(new Set());
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const defaultProfileData: AccountDataResponse = useMemo(() => ({
     fullName: '',
@@ -33,6 +38,7 @@ const AccountSettings = () => {
     email: '',
     phone: '',
     userCode: '',
+    avatarUrl: DEFAULT_AVATAR_URL,
   }), []);
   const [profileData, setProfileData] = useState<AccountDataResponse>(defaultProfileData);
   const formattedJoinDate = useMemo(() => {
@@ -44,6 +50,13 @@ const AccountSettings = () => {
       month: 'long',
     });
   }, [profileData.joinDate]);
+  const avatarPreviewUrl = useMemo(() => {
+    const trimmed = profileData.avatarUrl?.trim();
+    if (!trimmed) {
+      return DEFAULT_AVATAR_URL;
+    }
+    return trimmed;
+  }, [profileData.avatarUrl]);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -77,6 +90,14 @@ const AccountSettings = () => {
     try {
       setIsLoadingProfile(true);
       const data = await getAccountDataAPI();
+      const rawAvatar =
+        (typeof data?.avatarUrl === 'string' ? data.avatarUrl : undefined) ??
+        (typeof (data as any)?.avatarURL === 'string' ? (data as any).avatarURL : undefined);
+      const normalizedAvatar =
+        typeof rawAvatar === 'string' && rawAvatar.trim().length > 0
+          ? rawAvatar.trim()
+          : defaultProfileData.avatarUrl;
+
       setProfileData({
         fullName: data?.fullName ?? defaultProfileData.fullName,
         firstName: data?.firstName ?? defaultProfileData.firstName,
@@ -85,6 +106,7 @@ const AccountSettings = () => {
         email: data?.email ?? defaultProfileData.email,
         phone: data?.phone ?? defaultProfileData.phone,
         userCode: data?.userCode ?? defaultProfileData.userCode,
+        avatarUrl: normalizedAvatar,
       });
     } catch (error) {
       toast.error('Failed to load account data. Please try again.');
@@ -107,6 +129,7 @@ const AccountSettings = () => {
       const payload: UserUpdateProfile = {
         ...profileData,
         joinDate: profileData.joinDate,
+        avatarUrl: profileData.avatarUrl?.trim() || DEFAULT_AVATAR_URL,
       };
       const isSuccess = await saveData(payload);
       if (isSuccess) {
@@ -212,10 +235,23 @@ const AccountSettings = () => {
                 >
                   <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
                     <div className="relative group">
-                      <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center text-white text-2xl font-light shadow-lg shadow-cyan-500/30 transition-all duration-300 group-hover:shadow-cyan-500/50">
-                        {(profileData.firstName?.[0] ?? 'U') + (profileData.lastName?.[0] ?? 'N')}
+                      <div className="w-24 h-24 rounded-2xl overflow-hidden border border-gray-800/60 bg-gray-900/60 shadow-lg shadow-cyan-500/20 transition-all duration-300 group-hover:shadow-cyan-500/40">
+                        <img
+                          src={avatarPreviewUrl}
+                          alt={`${profileData.firstName || 'User'} ${profileData.lastName || 'Avatar'}`}
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = DEFAULT_AVATAR_URL;
+                          }}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                      <button className="absolute -bottom-2 -right-2 w-9 h-9 bg-gray-800/80 backdrop-blur-sm border border-cyan-400/50 rounded-full flex items-center justify-center hover:bg-gray-700 hover:scale-110 transition-all duration-300">
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.focus()}
+                        className="absolute -bottom-2 -right-2 w-9 h-9 bg-gray-800/80 backdrop-blur-sm border border-cyan-400/50 rounded-full flex items-center justify-center hover:bg-gray-700 hover:scale-110 transition-all duration-300"
+                        aria-label="Update avatar using image link"
+                      >
                         <Camera className="w-4 h-4 text-cyan-400" />
                       </button>
                       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-400 to-cyan-500 opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-300" />
@@ -251,6 +287,46 @@ const AccountSettings = () => {
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="group md:col-span-2">
+                      <label className="block text-sm font-light text-gray-400 mb-2">
+                        Avatar Image Link
+                      </label>
+                      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+                        <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-800/60 bg-gray-900/40 flex-shrink-0">
+                          <img
+                            src={avatarPreviewUrl}
+                            alt="Avatar preview"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = DEFAULT_AVATAR_URL;
+                            }}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="relative flex-1 group">
+                          <Link2 className="absolute left-3 top-3.5 w-5 h-5 text-gray-500 transition-colors duration-300 group-focus-within:text-cyan-400" />
+                          <input
+                            ref={avatarInputRef}
+                            id="account-avatar-url"
+                            type="url"
+                            inputMode="url"
+                            value={profileData.avatarUrl}
+                            onChange={(e) => handleProfileUpdate('avatarUrl', e.target.value)}
+                            onBlur={(e) => {
+                              const trimmed = e.target.value.trim();
+                              handleProfileUpdate('avatarUrl', trimmed || DEFAULT_AVATAR_URL);
+                            }}
+                            placeholder="https://example.com/your-avatar.jpg"
+                            className="w-full bg-gray-900/20 border border-gray-800/50 rounded-xl pl-12 pr-4 py-3 text-white font-light placeholder-gray-500
+                                     focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 backdrop-blur-sm transition-all duration-300"
+                          />
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-gray-500">
+                        Paste a direct HTTPS link to your profile image. Leave blank to keep the default avatar.
+                      </p>
+                    </div>
+
                     <div className="group">
                       <label className="block text-sm font-light text-gray-400 mb-2">
                         First Name

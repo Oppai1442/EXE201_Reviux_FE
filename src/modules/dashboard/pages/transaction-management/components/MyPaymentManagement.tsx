@@ -4,6 +4,7 @@ import {
     Shield,
     X,
     DollarSign,
+    Wallet,
     Eye,
     RefreshCw,
     Download,
@@ -15,8 +16,10 @@ import {
 
 import WalletTopupModal from "../modal/TopupModal";
 import { generateCheckoutTopupAPI, getMyTransactionHistroyAPI, getMyTransactionSummaryAPI } from "../services/payment";
+import { getWalletBalanceAPI } from "@/modules/checkout/services/checkout";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/constant/routes";
+import showToast from "@/utils/toast";
 
 const MyPaymentManagement = () => {
     const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
@@ -33,8 +36,18 @@ const MyPaymentManagement = () => {
         successCount: 0,
         totalAmount: 0
     });
+    const [walletBalance, setWalletBalance] = useState<number | null>(null);
     const itemsPerPage = 5;
     const navigate = useNavigate();
+
+    const handleCopyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('success', 'Copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            showToast('error', 'Failed to copy!');
+        });
+    };
 
     useEffect(() => {
         const updateTransactionHistory = async () => {
@@ -52,9 +65,10 @@ const MyPaymentManagement = () => {
 
     const fetchInitData = useCallback(async () => {
         try {
-            const [historyResponse, transactionSummary] = await Promise.all([
+            const [historyResponse, transactionSummary, balance] = await Promise.all([
                 getMyTransactionHistroyAPI(0, itemsPerPage),
                 getMyTransactionSummaryAPI(),
+                getWalletBalanceAPI(),
             ]);
 
             setTransactions(historyResponse?.content ?? []);
@@ -65,8 +79,10 @@ const MyPaymentManagement = () => {
                 successCount: 0,
                 totalAmount: 0
             });
+            setWalletBalance(typeof balance === "number" ? balance : null);
         } catch (error) {
             console.error('Failed to fetch initial payment data', error);
+            setWalletBalance(null);
         }
     }, [itemsPerPage]);
 
@@ -133,14 +149,14 @@ const MyPaymentManagement = () => {
 
     const getStatusBadge = (status) => {
         const statusConfig = {
-            SUCCESS: 'bg-cyan-400/10 text-cyan-400 border-cyan-400/30',
-            PENDING: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/30',
+            COMPLETED: 'bg-cyan-400/10 text-cyan-400 border-cyan-400/30',
+            ACTIVE: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/30',
             FAILED: 'bg-red-400/10 text-red-400 border-red-400/30'
         };
 
         const statusText = {
-            SUCCESS: 'Success',
-            PENDING: 'Pending',
+            COMPLETED: 'Success',
+            ACTIVE: 'Pending',
             FAILED: 'Failed'
         };
 
@@ -218,9 +234,10 @@ const MyPaymentManagement = () => {
                 {/* Stats Cards */}
                 <div
                     data-section="stats"
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6"
                 >
                     {[
+                        { label: 'Account Balance', value: walletBalance !== null ? formatAmount(walletBalance) : '--', icon: Wallet, color: 'cyan' },
                         { label: 'Total Amount', value: formatAmount(summary.totalAmount), icon: DollarSign, color: 'cyan' },
                         { label: 'Successful', value: summary.successCount, icon: Shield, color: 'cyan' },
                         { label: 'Failed', value: summary.failedCount, icon: X, color: 'red' },
@@ -295,7 +312,7 @@ const MyPaymentManagement = () => {
                                         >
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-light">
                                                 {transaction.id.length > 13 ? (
-                                                    <abbr title={transaction.id} className="cursor-help hover:text-cyan-400 transition-colors duration-300">
+                                                    <abbr title={transaction.id} onClick={() => handleCopyToClipboard(transaction.id)} className="cursor-pointer hover:text-cyan-400 transition-colors duration-300">
                                                         {transaction.id.substring(0, 13)}...
                                                     </abbr>
                                                 ) : (
@@ -305,7 +322,7 @@ const MyPaymentManagement = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 font-light">{transaction.type}</td>
                                             <td className="px-6 py-4 text-sm text-gray-300 font-light max-w-xs">
                                                 {transaction.description.length > 30 ? (
-                                                    <abbr title={transaction.description} className="cursor-help hover:text-cyan-400 transition-colors duration-300">
+                                                    <abbr title={transaction.description} onClick={() => handleCopyToClipboard(transaction.description)} className="cursor-pointer hover:text-cyan-400 transition-colors duration-300">
                                                         {transaction.description.substring(0, 30)}...
                                                     </abbr>
                                                 ) : (

@@ -17,6 +17,9 @@ import { useNavigate } from "react-router-dom";
 import { useNotifications } from "@/context/NotificationContext";
 import { formatDistanceToNow } from "date-fns";
 
+const DEFAULT_AVATAR_URL =
+  "https://static.vecteezy.com/system/resources/previews/009/292/244/non_2x/default-avatar-icon-of-social-media-user-vector.jpg";
+
 const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const popupRef = useRef(null);
@@ -79,6 +82,11 @@ const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
     if (unreadIds.length === 0) return;
     await markManyAsRead(unreadIds);
   };
+
+  const avatarUrl =
+    user?.avatarUrl && user.avatarUrl.trim().length > 0
+      ? user.avatarUrl.trim()
+      : DEFAULT_AVATAR_URL;
 
   const handleNotificationClick = async (notification) => {
     await markAsRead(notification.id);
@@ -249,9 +257,16 @@ const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
                 }}
                 className="group flex items-center gap-3 p-3 rounded-xl bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 hover:border-cyan-400/50 hover:bg-gray-800/30 transition-all duration-300 hover:scale-105"
               >
-                <div className="relative w-8 h-8 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/30 group-hover:shadow-cyan-500/50 transition-all duration-300">
-                  <User className="h-4 w-4 text-white" />
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="relative w-8 h-8 rounded-xl overflow-hidden border border-gray-800/50 shadow-lg shadow-cyan-500/20 group-hover:shadow-cyan-500/40 transition-all duration-300">
+                  <img
+                    src={avatarUrl}
+                    alt={user?.username ?? "User avatar"}
+                    onError={(event) => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src = DEFAULT_AVATAR_URL;
+                    }}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <ChevronDown className={`h-4 w-4 text-gray-400 group-hover:text-cyan-400 transition-all duration-300 ${
                   userMenuOpen ? 'rotate-180' : ''

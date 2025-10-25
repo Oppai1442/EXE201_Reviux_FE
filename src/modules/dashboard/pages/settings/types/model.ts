@@ -6,6 +6,7 @@ export interface AccountDataResponse {
     email: string,
     phone: string,
     userCode: string,
+    avatarUrl: string,
 }
 
 export interface UserUpdateProfile {
@@ -16,4 +17,5 @@ export interface UserUpdateProfile {
     email: string,
     phone: string,
     userCode: string,
+    avatarUrl: string,
 }

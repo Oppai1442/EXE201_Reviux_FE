@@ -174,21 +174,21 @@ const Navbar = () => {
                         <div>
                           <p className="text-sm text-white font-light">Notifications</p>
                           <p className="text-xs text-gray-500 font-light">
-                            Bạn có {unreadCount} thông báo chưa đọc
+                            You have {unreadCount} unread notifications
                           </p>
                         </div>
                         <button
                           onClick={handleMarkAllAsRead}
                           className="text-xs text-cyan-400 hover:text-cyan-300 font-light"
                         >
-                          Đánh dấu đã đọc
+                          Mark all as read
                         </button>
                       </div>
 
                       <div className="max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700/50 hover:scrollbar-thumb-cyan-400/30">
                         {latestNotifications.length === 0 ? (
                           <div className="px-4 py-6 text-center text-gray-500 font-light text-sm">
-                            Không có thông báo nào
+                            No notifications yet
                           </div>
                         ) : (
                           latestNotifications.map((item) => (
@@ -228,7 +228,7 @@ const Navbar = () => {
                           }}
                           className="w-full text-sm font-light text-cyan-400 hover:text-cyan-300"
                         >
-                          Xem tất cả
+                          View all notifications
                         </button>
                       </div>
                     </div>
