@@ -19,11 +19,17 @@ export const getTicketDetailAPI = async (ticketId: number) => {
 export const postTicketMessageAPI = async (
   ticketId: number,
   payload: CreateTicketMessageRequest,
+  attachments: File[] = [],
 ) => {
+  const formData = new FormData();
+  formData.append('message', JSON.stringify(payload));
+  attachments.forEach((file) => {
+    formData.append('files', file);
+  });
+
   const response = await postData<TicketMessage>(
     `/ticket/my/${ticketId}/messages`,
-    payload,
+    formData,
   );
   return response.data;
 };
-

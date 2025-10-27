@@ -1176,21 +1176,30 @@ const TestRequestManagement = () => {
                   <button
                     type="button"
                     onClick={handleClaimRequest}
-                    disabled={actionLoading || selectedRequest.assignedTester !== 'Unassigned'}
+                    disabled={
+                      actionLoading ||
+                      selectedRequest.assignedTester !== 'Unassigned' ||
+                      selectedRequest.status === 'completed'
+                    }
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    {selectedRequest.assignedTester === 'Unassigned' ? 'Claim Request' : 'Already Claimed'}
+                    {selectedRequest.status === 'completed'
+                      ? 'Request Completed'
+                      : selectedRequest.assignedTester === 'Unassigned'
+                        ? 'Claim Request'
+                        : 'Already Claimed'}
                   </button>
                 )}
 
                 <button
                   type="button"
                   onClick={() => handleToggleForm('assign')}
+                  disabled={selectedRequest.status === 'completed'}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'assign'
                       ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                       : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    }`}
+                    } ${selectedRequest.status === 'completed' ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Assign Tester
                 </button>
@@ -1198,10 +1207,11 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('testLog')}
+                  disabled={selectedRequest.status === 'completed'}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'testLog'
                       ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                       : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    }`}
+                    } ${selectedRequest.status === 'completed' ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Add Test Log
                 </button>
@@ -1209,13 +1219,15 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('bugReport')}
+                  disabled={selectedRequest.status === 'completed'}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'bugReport'
                       ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                       : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    }`}
+                    } ${selectedRequest.status === 'completed' ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Add Bug Report
                 </button>
+
               </div>
             </div>
 

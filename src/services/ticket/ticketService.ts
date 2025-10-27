@@ -1,7 +1,16 @@
 import axios from 'axios';
 import { Stomp } from '@stomp/stompjs';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '')
+  ?? 'http://localhost:8080/api';
+
+const resolveWebSocketUrl = (path: string, token?: string) => {
+  const apiBase = API_BASE_URL;
+  const wsBase = apiBase.replace(/^http/i, (match) => (match === 'https' ? 'wss' : 'ws'));
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${wsBase}${normalizedPath}`;
+  return token ? `${url}?token=${encodeURIComponent(token)}` : url;
+};
 
 // Interface for API response wrapper
 export interface ApiResponse<T> {
@@ -209,12 +218,9 @@ export const ticketService = {
     return response.data.data; // Extract the data field from the API response
   },
   
-  connectToTicketChat: (ticketId: number, onMessageReceived: (message: CommentDTO) => void, token: string) => {
-    // Tạo factory function để hỗ trợ auto reconnect
-    const socketFactory = () => {
-      return new WebSocket(`ws://localhost:8080/api/ws?token=${token}`);
-    };
-    
+  connectToTicketChat: (ticketId: number, onMessageReceived: (message: CommentDTO) => void, token?: string) => {
+    const socketFactory = () => new WebSocket(resolveWebSocketUrl('/ws', token));
+
     const client = Stomp.over(socketFactory);
     
     // Giảm log trong production
@@ -223,7 +229,7 @@ export const ticketService = {
     }
     
     client.connect(
-      {}, // Headers
+      token ? { Authorization: `Bearer ${token}` } : {},
       () => {
         console.log(`Connected to WebSocket for ticket ${ticketId}`);
         client.subscribe(`/topic/ticket.${ticketId}`, (message) => {

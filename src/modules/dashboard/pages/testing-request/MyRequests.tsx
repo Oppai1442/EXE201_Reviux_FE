@@ -23,8 +23,11 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Loading } from "@/components/Loading";
 import QATestingForm from "./components/QATestingForm";
+import { ticketService } from "@/services/ticket/ticketService";
+import { ROUTES } from "@/constant/routes";
 import {
   getBugReportsAPI,
   getTestingRequestDetailsAPI,
@@ -120,6 +123,9 @@ interface PaginationProps {
 interface RequestDetailsDrawerProps {
   request: RequestItem | null;
   onClose: () => void;
+  onCreateTicket?: (request: RequestItem) => void;
+  creatingTicket?: boolean;
+  canCreateTicket?: boolean;
 }
 
 const DEFAULT_PRIORITY: RequestPriority = "medium";
@@ -178,6 +184,16 @@ const priorityClasses: Record<RequestPriority, string> = {
   medium: "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40",
   low: "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40",
 };
+
+const ticketPriorityMap: Record<RequestPriority, "low" | "medium" | "high"> = {
+  urgent: "high",
+  high: "high",
+  medium: "medium",
+  low: "low",
+};
+
+const mapPriorityForTicket = (priority: RequestPriority): "low" | "medium" | "high" =>
+  ticketPriorityMap[priority] ?? "medium";
 
 const toTimestamp = (value?: string | null) => {
   if (!value) {
@@ -743,7 +759,13 @@ const BugCommentsList = ({ comments }: { comments?: BugComment[] }) => {
   );
 };
 
-const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({ request, onClose }) => {
+const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
+  request,
+  onClose,
+  onCreateTicket,
+  creatingTicket = false,
+  canCreateTicket = false,
+}) => {
   if (!request) {
     return null;
   }
@@ -896,6 +918,18 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({ request, on
                   </div>
                 </div>
               )}
+
+            {canCreateTicket && onCreateTicket && (
+              <button
+                type="button"
+                onClick={() => onCreateTicket(request)}
+                disabled={creatingTicket}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {creatingTicket ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Create Support Ticket
+              </button>
+            )}
           </div>
 
           {/* Right Column - Updates, Logs & Bug Reports */}
@@ -1020,7 +1054,10 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({ request, on
 };
 
 const MyRequestsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, loading: authLoading, showAuthModal } = useAuth();
+  const isStaff = Array.isArray((user as unknown as { roles?: Array<{ name?: string }> })?.roles)
+    && ((user as unknown as { roles?: Array<{ name?: string }> }).roles?.some((role) => role?.name === 'STAFF'));
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -1037,6 +1074,7 @@ const MyRequestsPage: React.FC = () => {
   const [tokenLoading, setTokenLoading] = useState(true);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isBuyingTokens, setIsBuyingTokens] = useState(false);
+  const [creatingTicket, setCreatingTicket] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -1072,6 +1110,45 @@ const MyRequestsPage: React.FC = () => {
   }, [user]);
 
 const ownerId = user?.id ?? null;
+
+  const handleCreateTicketFromRequest = useCallback(
+    async (request: RequestItem) => {
+      if (creatingTicket) {
+        return;
+      }
+      if (!user) {
+        toast.error("Please sign in to create a support ticket.");
+        showAuthModal("signIn");
+        return;
+      }
+
+      if (request.status !== "completed") {
+        toast.error("Support tickets can only be created for completed requests.");
+        return;
+      }
+
+      setCreatingTicket(true);
+      try {
+        await ticketService.createTicket({
+          userId: user.id,
+          subject: `${request.title} (${request.code})`,
+          description:
+            request.description ||
+            `Follow-up ticket for testing request ${request.code}.`,
+          priority: mapPriorityForTicket(request.priority),
+        });
+        toast.success("Support ticket created successfully.");
+        setSelectedRequest(null);
+        navigate(ROUTES.DASHBOARD.child.MY_TICKET.getPath());
+      } catch (error) {
+        console.error("Failed to create ticket from testing request", error);
+        toast.error("Failed to create support ticket.");
+      } finally {
+        setCreatingTicket(false);
+      }
+    },
+    [creatingTicket, navigate, showAuthModal, user],
+  );
 
   const handleBuyTokens = useCallback(async () => {
     if (!tokenInfo) {
@@ -1519,7 +1596,13 @@ const ownerId = user?.id ?? null;
         </div>
       )}
 
-      <RequestDetailsDrawer request={selectedRequest} onClose={() => setSelectedRequest(null)} />
+      <RequestDetailsDrawer
+        request={selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+        onCreateTicket={handleCreateTicketFromRequest}
+        creatingTicket={creatingTicket}
+        canCreateTicket={Boolean(selectedRequest && selectedRequest.status === "completed" && !isStaff)}
+      />
     </div>
   );
 };
