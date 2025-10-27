@@ -102,7 +102,7 @@ const MyTicket: React.FC = () => {
         ticket.shortDescription,
         ...(ticket.tags ?? []),
       ]
-        .filter(Boolean)
+        .filter((value): value is string => typeof value === 'string' && value !== '')
         .map((value) => value.toLowerCase());
 
       return haystack.some((value) => value.includes(normalized));
@@ -392,7 +392,7 @@ const MyTicket: React.FC = () => {
         onSendMessage={handleSendMessage}
       />
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;

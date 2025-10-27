@@ -9,13 +9,15 @@ import {
   Link as LinkIcon,
   Loader2,
   Trash2,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   submitTestingRequestAPI,
   type SubmitTestingRequestPayload,
 } from "../services/testingRequestService";
-import { calculateRequiredTokens, getTokenCostForType } from "../utils/tokenCost";
+import { getTokenCostForType } from "../utils/tokenCost";
 import type { UserTokenInfo } from "../services/userTokenService";
 
 interface QATestingFormProps {
@@ -29,6 +31,7 @@ interface LocalFormState {
   title: string;
   description: string;
   testingTypes: string[];
+  scopeAllocations: Record<string, number>;
   deadline: string;
   referenceUrl: string;
   archive: File | null;
@@ -57,6 +60,7 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
     title: "",
     description: "",
     testingTypes: [],
+    scopeAllocations: {},
     deadline: "",
     referenceUrl: "",
     archive: null,
@@ -74,19 +78,63 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
     );
   }, [formState]);
 
-  const requiredTokens = useMemo(
-    () => calculateRequiredTokens(formState.testingTypes),
-    [formState.testingTypes],
-  );
+  const requiredTokens = useMemo(() => {
+    if (formState.testingTypes.length === 0) {
+      return 0;
+    }
+    return formState.testingTypes.reduce((total, type) => {
+      const allocation = formState.scopeAllocations[type];
+      if (typeof allocation === "number" && allocation > 0) {
+        return total + allocation;
+      }
+      return total + getTokenCostForType(type);
+    }, 0);
+  }, [formState.testingTypes, formState.scopeAllocations]);
 
   const handleToggleType = (option: string) => {
     setFormState((prev) => {
       const exists = prev.testingTypes.includes(option);
+      if (exists) {
+        const { [option]: _removed, ...rest } = prev.scopeAllocations;
+        return {
+          ...prev,
+          testingTypes: prev.testingTypes.filter((item) => item !== option),
+          scopeAllocations: rest,
+        };
+      }
+      const defaultTokens = getTokenCostForType(option);
       return {
         ...prev,
-        testingTypes: exists
-          ? prev.testingTypes.filter((item) => item !== option)
-          : [...prev.testingTypes, option],
+        testingTypes: [...prev.testingTypes, option],
+        scopeAllocations: {
+          ...prev.scopeAllocations,
+          [option]: defaultTokens,
+        },
+      };
+    });
+  };
+
+  const handleScopeTokenChange = (option: string, value: number) => {
+    const sanitized = Number.isNaN(value) ? 1 : Math.max(1, Math.round(value));
+    setFormState((prev) => ({
+      ...prev,
+      scopeAllocations: {
+        ...prev.scopeAllocations,
+        [option]: sanitized,
+      },
+    }));
+  };
+
+  const handleScopeTokenStep = (option: string, delta: number) => {
+    setFormState((prev) => {
+      const current = prev.scopeAllocations[option] ?? getTokenCostForType(option);
+      const next = Math.max(1, current + delta);
+      return {
+        ...prev,
+        scopeAllocations: {
+          ...prev.scopeAllocations,
+          [option]: next,
+        },
       };
     });
   };
@@ -126,10 +174,17 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
       return;
     }
 
+    const scopePayload = formState.testingTypes.map((type) => ({
+      type,
+      tokens: Math.max(1, formState.scopeAllocations[type] ?? getTokenCostForType(type)),
+    }));
+
     const payload: SubmitTestingRequestPayload = {
       title: formState.title.trim(),
       description: formState.description.trim(),
       testingTypes: formState.testingTypes,
+      testingScope: scopePayload.length ? scopePayload : undefined,
+      requestedTokenFee: requiredTokens > 0 ? requiredTokens : undefined,
       deadline: formState.deadline || undefined,
       referenceUrl: formState.referenceUrl.trim() || undefined,
       archive: formState.archive,
@@ -292,6 +347,53 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
                 );
               })}
             </div>
+            {formState.testingTypes.length > 0 && (
+              <div className="mt-4 space-y-3 rounded-xl border border-gray-800/60 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Token allocation</div>
+                <p className="text-xs text-gray-400">
+                  Increase tokens for a scope if you want the QA team to dedicate more effort to that area.
+                </p>
+                <div className="space-y-3">
+                  {formState.testingTypes.map((type) => {
+                    const current = formState.scopeAllocations[type] ?? getTokenCostForType(type);
+                    const baseline = getTokenCostForType(type);
+                    return (
+                      <div key={type} className="flex flex-col gap-2 rounded-lg border border-gray-800/50 bg-gray-900/40 p-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-white">{type}</div>
+                          <div className="text-xs text-gray-500">Default allocation: {baseline} token{baseline > 1 ? "s" : ""}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleScopeTokenStep(type, -1)}
+                            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-800/60 bg-gray-900/60 text-gray-300 transition-colors duration-200 hover:border-cyan-500/50 hover:text-cyan-200"
+                            aria-label={`Decrease token allocation for ${type}`}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <input
+                            type="number"
+                            min={1}
+                            value={current}
+                            onChange={(event) => handleScopeTokenChange(type, Number(event.target.value))}
+                            className="w-20 rounded-lg border border-gray-800/60 bg-gray-900/60 px-3 py-1 text-center text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleScopeTokenStep(type, 1)}
+                            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-800/60 bg-gray-900/60 text-gray-300 transition-colors duration-200 hover:border-cyan-500/50 hover:text-cyan-200"
+                            aria-label={`Increase token allocation for ${type}`}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

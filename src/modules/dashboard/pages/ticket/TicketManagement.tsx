@@ -6,10 +6,10 @@ import TicketTable from './components/TicketTable';
 import TicketDetailModal from './components/TicketDetailModal';
 import { useAuth } from '@/context/AuthContext';
 import {
-  ticketService,
-  type TicketDTO,
-  type CommentDTO,
-  type AttachmentDTO,
+    ticketService,
+    type TicketDTO,
+    type CommentDTO,
+    type AttachmentDTO,
 } from '@/services/ticket/ticketService';
 import {
     enhanceTicketDetail,
@@ -327,7 +327,7 @@ const TicketManagement: React.FC = () => {
                 ticket.shortDescription,
                 ...ticket.tags,
             ]
-                .filter(Boolean)
+                .filter((value): value is string => typeof value === 'string' && value !== '')
                 .map((value) => value.toLowerCase());
 
             return haystack.some((value) => value.includes(normalized));
@@ -597,50 +597,50 @@ const TicketManagement: React.FC = () => {
                 onSendMessage={handleSendMessage}
             />
 
-            <style jsx>{`
-                @keyframes fadeIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(10px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-                }
+            <style>{`
+            @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            }
 
-                .animate-spin {
-                animation: spin 1s linear;
-                }
+            .animate-spin {
+            animation: spin 1s linear;
+            }
 
-                @keyframes spin {
-                from {
-                    transform: rotate(0deg);
-                }
-                to {
-                    transform: rotate(360deg);
-                }
-                }
+            @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+            }
 
-                ::-webkit-scrollbar {
-                width: 8px;
-                height: 8px;
-                }
+            ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+            }
 
-                ::-webkit-scrollbar-track {
-                background: rgba(17, 24, 39, 0.3);
-                border-radius: 4px;
-                }
+            ::-webkit-scrollbar-track {
+            background: rgba(17, 24, 39, 0.3);
+            border-radius: 4px;
+            }
 
-                ::-webkit-scrollbar-thumb {
-                background: rgba(6, 182, 212, 0.3);
-                border-radius: 4px;
-                }
+            ::-webkit-scrollbar-thumb {
+            background: rgba(6, 182, 212, 0.3);
+            border-radius: 4px;
+            }
 
-                ::-webkit-scrollbar-thumb:hover {
-                background: rgba(6, 182, 212, 0.5);
-                }
-            `}</style>
+            ::-webkit-scrollbar-thumb:hover {
+            background: rgba(6, 182, 212, 0.5);
+            }
+        `}</style>
         </div>
     );
 };

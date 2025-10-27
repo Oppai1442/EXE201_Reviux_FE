@@ -1,4 +1,4 @@
-import { getData, postData } from '@/services/api/apiService';
+import { getData, postData, patchData } from '@/services/api/apiService';
 
 export interface ApiUser {
   id: number;
@@ -26,6 +26,11 @@ export interface TestLogInfo {
   createdAt: string;
 }
 
+export interface TestingScopeItem {
+  type: string;
+  tokens: number;
+}
+
 export interface TestingRequestDetails {
   id: number;
   title: string;
@@ -40,9 +45,29 @@ export interface TestingRequestDetails {
   updates: TestingUpdateInfo[];
   logs: TestLogInfo[];
   testingTypes?: string[] | null;
+  testingScope?: TestingScopeItem[] | null;
+  requestedTokenFee?: number | null;
+  quotedPrice?: number | null;
+  quoteCurrency?: string | null;
+  quoteNotes?: string | null;
+  quoteCustomerNotes?: string | null;
+  quoteSentAt?: string | null;
+  quoteExpiry?: string | null;
+  quoteAcceptedAt?: string | null;
+  inProgressAt?: string | null;
+  readyForReviewAt?: string | null;
+  completedAt?: string | null;
   desiredDeadline?: string | null;
   attachmentDownloadUrl?: string | null;
   attachmentFileName?: string | null;
+}
+
+export interface TestingRequestStatusOption {
+  code: string;
+  label: string;
+  description: string;
+  progress: number;
+  terminal: boolean;
 }
 
 export interface BugComment {
@@ -79,6 +104,8 @@ export interface SubmitTestingRequestPayload {
   title: string;
   description: string;
   testingTypes: string[];
+  testingScope?: TestingScopeItem[];
+  requestedTokenFee?: number;
   deadline?: string;
   referenceUrl?: string;
   archive?: File | null;
@@ -92,6 +119,14 @@ export const submitTestingRequestAPI = async (payload: SubmitTestingRequestPaylo
   payload.testingTypes.forEach((type) => {
     formData.append('testingTypes', type);
   });
+
+  if (payload.testingScope?.length) {
+    formData.append('testingScope', JSON.stringify(payload.testingScope));
+  }
+
+  if (typeof payload.requestedTokenFee === 'number') {
+    formData.append('requestedTokenFee', String(payload.requestedTokenFee));
+  }
 
   if (payload.deadline) {
     formData.append('deadline', payload.deadline);
@@ -178,7 +213,48 @@ export interface AssignableTester {
   avatarURL?: string | null;
 }
 
+export interface SendTestingQuotePayload {
+  quotedPrice: number;
+  currency: string;
+  expiryDays?: number;
+  notes?: string;
+}
+
+export interface LifecycleDecisionPayload {
+  note?: string;
+}
+
 export const getAssignableTestersAPI = async () => {
   const response = await getData<AssignableTester[]>('/users/staff-and-admins');
   return response.data;
+};
+
+export const updateTestingRequestStatusAPI = async (requestId: number, status: string) => {
+  await patchData(`/testing-requests/${requestId}/status`, { status });
+};
+
+export const getTestingRequestStatusesAPI = async () => {
+  const response = await getData<TestingRequestStatusOption[]>('/testing-requests/status-options');
+  return response.data;
+};
+
+export const sendTestingQuoteAPI = async (requestId: number, payload: SendTestingQuotePayload) => {
+  await postData(`/testing-requests/${requestId}/quote`, {
+    quotedPrice: payload.quotedPrice,
+    currency: payload.currency,
+    expiryDays: payload.expiryDays,
+    notes: payload.notes ?? undefined,
+  });
+};
+
+export const acceptTestingQuoteAPI = async (requestId: number, payload?: LifecycleDecisionPayload) => {
+  await postData(`/testing-requests/${requestId}/quote/accept`, payload ?? {});
+};
+
+export const markReadyForReviewAPI = async (requestId: number, payload?: LifecycleDecisionPayload) => {
+  await postData(`/testing-requests/${requestId}/ready-for-review`, payload ?? {});
+};
+
+export const confirmTestingCompletionAPI = async (requestId: number, payload?: LifecycleDecisionPayload) => {
+  await postData(`/testing-requests/${requestId}/complete`, payload ?? {});
 };

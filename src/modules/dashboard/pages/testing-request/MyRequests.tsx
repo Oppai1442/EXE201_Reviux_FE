@@ -14,6 +14,7 @@ import {
   ArrowDown,
   MessageCircle,
   Activity,
+  Eye,
   FileText,
   RefreshCw,
   Loader2,
@@ -31,12 +32,17 @@ import { ROUTES } from "@/constant/routes";
 import {
   getBugReportsAPI,
   getTestingRequestDetailsAPI,
+  getTestingRequestStatusesAPI,
+  acceptTestingQuoteAPI,
+  confirmTestingCompletionAPI,
   type ApiUser,
   type BugComment,
   type BugReport,
   type TestLogInfo,
   type TestingRequestDetails,
   type TestingUpdateInfo,
+  type TestingRequestStatusOption,
+  type TestingScopeItem,
 } from "./services/testingRequestService";
 import {
   getCurrentUserTokensAPI,
@@ -44,13 +50,13 @@ import {
   type UserTokenInfo,
 } from "./services/userTokenService";
 
-type NormalizedStatus = "pending" | "in-progress" | "completed" | "failed";
+type RequestStatus = string;
 type RequestPriority = "urgent" | "high" | "medium" | "low";
 type SortField = "createdAt" | "updatedAt" | "progress" | "title" | "status";
 type SortDirection = "asc" | "desc";
 
 interface FiltersState {
-  status: "all" | NormalizedStatus;
+  status: "all" | RequestStatus;
   priority: "all" | RequestPriority;
   productType: "all" | string;
 }
@@ -60,7 +66,7 @@ interface RequestItem {
   code: string;
   title: string;
   description: string;
-  status: NormalizedStatus;
+  status: RequestStatus;
   rawStatus: string;
   progress: number;
   priority: RequestPriority;
@@ -80,6 +86,18 @@ interface RequestItem {
   updates: TestingUpdateInfo[];
   logs: TestLogInfo[];
   bugReports: BugReport[];
+  requestedTokenFee?: number | null;
+  testingScope?: TestingScopeItem[] | null;
+  quotedPrice?: number | null;
+  quoteCurrency?: string | null;
+  quoteNotes?: string | null;
+  quoteCustomerNotes?: string | null;
+  quoteSentAt?: string | null;
+  quoteExpiry?: string | null;
+  quoteAcceptedAt?: string | null;
+  inProgressAt?: string | null;
+  readyForReviewAt?: string | null;
+  completedAt?: string | null;
 }
 
 interface SearchBarProps {
@@ -91,6 +109,7 @@ interface SearchBarProps {
 interface FilterPanelProps {
   filters: FiltersState;
   productTypes: string[];
+  statusOptions: Array<{ value: FiltersState["status"]; label: string }>;
   isOpen: boolean;
   onToggle: () => void;
   onFilterChange: <K extends keyof FiltersState>(key: K, value: FiltersState[K]) => void;
@@ -112,6 +131,7 @@ interface StatChipProps {
 interface RequestCardProps {
   item: RequestItem;
   onSelect: (item: RequestItem) => void;
+  formatStatusLabel: (status: string) => string;
 }
 
 interface PaginationProps {
@@ -123,26 +143,19 @@ interface PaginationProps {
 interface RequestDetailsDrawerProps {
   request: RequestItem | null;
   onClose: () => void;
+  formatStatusLabel: (status: string) => string;
+  getStatusMeta: (value?: string | null) => TestingRequestStatusOption;
   onCreateTicket?: (request: RequestItem) => void;
   creatingTicket?: boolean;
   canCreateTicket?: boolean;
+  onAcceptQuote?: (request: RequestItem) => void;
+  onConfirmCompletion?: (request: RequestItem) => void;
+  acceptingQuote?: boolean;
+  confirmingCompletion?: boolean;
 }
 
 const DEFAULT_PRIORITY: RequestPriority = "medium";
 const ITEMS_PER_PAGE = 6;
-
-const statusDictionary: Record<string, { status: NormalizedStatus; progress: number }> = {
-  NEW: { status: "pending", progress: 15 },
-  QUEUED: { status: "pending", progress: 20 },
-  WAITING_CUSTOMER: { status: "pending", progress: 30 },
-  PENDING_REVIEW: { status: "in-progress", progress: 55 },
-  IN_PROGRESS: { status: "in-progress", progress: 65 },
-  READY_FOR_REVIEW: { status: "in-progress", progress: 85 },
-  COMPLETED: { status: "completed", progress: 100 },
-  BLOCKED: { status: "failed", progress: 35 },
-  FAILED: { status: "failed", progress: 25 },
-  CANCELLED: { status: "failed", progress: 20 },
-};
 
 const severityPriorityMap: Record<string, RequestPriority> = {
   CRITICAL: "urgent",
@@ -151,12 +164,41 @@ const severityPriorityMap: Record<string, RequestPriority> = {
   LOW: "low",
 };
 
-const statusWeights: Record<NormalizedStatus, number> = {
-  pending: 1,
-  "in-progress": 2,
-  completed: 3,
-  failed: 4,
+const STATUS_DEADLINE_OFFSETS: Record<string, number> = {
+  NEW: 10,
+  PENDING: 7,
+  WAITING_CUSTOMER: 5,
+  IN_PROGRESS: 14,
+  READY_FOR_REVIEW: 3,
+  COMPLETED: 0,
+  CANCELLED: 0,
+  EXPIRED: 0,
 };
+
+const DEFAULT_STATUS_OPTION: TestingRequestStatusOption = {
+  code: "UNKNOWN",
+  label: "Pending",
+  description: "Awaiting next action",
+  progress: 20,
+  terminal: false,
+};
+
+const fallbackStatusLabel = (status: string) =>
+  status
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const STATUS_ORDER = [
+  "NEW",
+  "PENDING",
+  "WAITING_CUSTOMER",
+  "IN_PROGRESS",
+  "READY_FOR_REVIEW",
+  "COMPLETED",
+  "CANCELLED",
+  "EXPIRED",
+];
 
 const priorityLabels: Record<RequestPriority, string> = {
   urgent: "Urgent",
@@ -171,11 +213,26 @@ const productTypeLabelMap: Record<string, string> = {
   API: "API Service",
 };
 
-const statusPillClasses: Record<NormalizedStatus, string> = {
-  pending: "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40",
-  "in-progress": "bg-cyan-500/10 text-cyan-300 border border-cyan-500/40",
-  completed: "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40",
-  failed: "bg-rose-500/10 text-rose-300 border border-rose-500/40",
+const getStatusBadgeClasses = (status: string): string => {
+  const code = status.toUpperCase();
+  switch (code) {
+    case "COMPLETED":
+      return "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30";
+    case "READY_FOR_REVIEW":
+      return "bg-purple-500/10 text-purple-300 border border-purple-500/30";
+    case "IN_PROGRESS":
+      return "bg-cyan-500/10 text-cyan-300 border border-cyan-500/30";
+    case "WAITING_CUSTOMER":
+      return "bg-amber-500/10 text-amber-300 border border-amber-500/30";
+    case "CANCELLED":
+    case "EXPIRED":
+      return "bg-rose-500/10 text-rose-300 border border-rose-500/30";
+    case "NEW":
+    case "PENDING":
+      return "bg-sky-500/10 text-sky-300 border border-sky-500/30";
+    default:
+      return "bg-slate-500/10 text-slate-300 border border-slate-500/30";
+  }
 };
 
 const priorityClasses: Record<RequestPriority, string> = {
@@ -243,32 +300,6 @@ const formatResetCountdown = (value?: string | null) => {
   return `${minutes}m`;
 };
 
-const normalizeStatus = (value?: string | null): { status: NormalizedStatus; progress: number } => {
-  if (!value) {
-    return { status: "pending", progress: 20 };
-  }
-  const normalized = statusDictionary[value.toUpperCase()];
-  if (normalized) {
-    return normalized;
-  }
-  return { status: "pending", progress: 20 };
-};
-
-const computeProgress = (detail: TestingRequestDetails): number => {
-  let progress = normalizeStatus(detail.status).progress;
-
-  if (detail.updates?.length) {
-    detail.updates.forEach((update) => {
-      const mapped = normalizeStatus(update.status);
-      if (mapped.progress > progress) {
-        progress = mapped.progress;
-      }
-    });
-  }
-
-  return Math.min(100, Math.max(5, progress));
-};
-
 const buildDisplayName = (user: ApiUser | null | undefined): string => {
   if (!user) {
     return "Unassigned";
@@ -332,19 +363,12 @@ const derivePriority = (reports: BugReport[]): RequestPriority => {
   return DEFAULT_PRIORITY;
 };
 
-const computeDeadline = (detail: TestingRequestDetails, status: NormalizedStatus): string => {
+const computeDeadline = (detail: TestingRequestDetails, statusCode: string): string => {
   const base = detail.updatedAt ?? detail.createdAt;
   const baseDate = base ? new Date(base) : new Date();
-  const offsets: Record<NormalizedStatus, number> = {
-    pending: 10,
-    "in-progress": 14,
-    completed: 0,
-    failed: 5,
-  };
-
-  const days = offsets[status] ?? 10;
-  if (days > 0) {
-    baseDate.setDate(baseDate.getDate() + days);
+  const offsetDays = STATUS_DEADLINE_OFFSETS[statusCode] ?? 10;
+  if (offsetDays > 0) {
+    baseDate.setDate(baseDate.getDate() + offsetDays);
   }
 
   return baseDate.toISOString();
@@ -382,6 +406,26 @@ const formatDateTime = (value?: string | null) => {
   });
 };
 
+const formatCurrencyAmount = (amount?: number | null, currency?: string | null) => {
+  if (amount === null || amount === undefined) {
+    return "—";
+  }
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount)) {
+    return "—";
+  }
+  const normalizedCurrency =
+    currency && currency.trim().length > 0 ? currency.trim().toUpperCase() : "USD";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrency,
+    }).format(numericAmount);
+  } catch (error) {
+    return `${normalizedCurrency} ${numericAmount.toFixed(2)}`;
+  }
+};
+
 const humanizeStatus = (value?: string | null) => {
   if (!value) {
     return "Unknown";
@@ -393,14 +437,23 @@ const humanizeStatus = (value?: string | null) => {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
-const getStatusIcon = (status: NormalizedStatus) => {
-  switch (status) {
-    case "completed":
+const getStatusIcon = (status: RequestStatus) => {
+  const code = status.toUpperCase();
+  switch (code) {
+    case "COMPLETED":
       return <CheckCircle className="h-4 w-4" />;
-    case "failed":
-      return <XCircle className="h-4 w-4" />;
-    case "in-progress":
+    case "READY_FOR_REVIEW":
+      return <Eye className="h-4 w-4" />;
+    case "IN_PROGRESS":
       return <Activity className="h-4 w-4" />;
+    case "WAITING_CUSTOMER":
+      return <AlertCircle className="h-4 w-4" />;
+    case "CANCELLED":
+    case "EXPIRED":
+      return <XCircle className="h-4 w-4" />;
+    case "NEW":
+    case "PENDING":
+      return <Clock className="h-4 w-4" />;
     default:
       return <AlertCircle className="h-4 w-4" />;
   }
@@ -412,38 +465,6 @@ const getSeverityMeta = (severity?: string | null) => {
   return {
     label: normalized ? normalized.toLowerCase() : "unknown",
     badgeClass: priorityClasses[priority],
-  };
-};
-
-const mapDetailToItem = (detail: TestingRequestDetails, reports: BugReport[]): RequestItem => {
-  const normalizedStatus = normalizeStatus(detail.status);
-  const desiredDeadline = detail.desiredDeadline ?? null;
-  const computedDeadline = desiredDeadline ?? computeDeadline(detail, normalizedStatus.status);
-  return {
-    id: detail.id,
-    code: formatRequestId(detail.id),
-    title: detail.title ?? "Untitled request",
-    description: detail.description ?? "",
-    status: normalizedStatus.status,
-    rawStatus: detail.status ?? "UNKNOWN",
-    progress: computeProgress(detail),
-    priority: derivePriority(reports),
-    productType: formatProductType(detail.productType),
-    productTypeRaw: detail.productType?.toUpperCase() ?? "UNKNOWN",
-    createdAt: detail.createdAt ?? "",
-    updatedAt: detail.updatedAt ?? "",
-    deadline: computedDeadline,
-    desiredDeadline,
-    assignedTester: deriveAssignedTester(detail, reports),
-    customerName: buildDisplayName(detail.customer),
-    fileUrl: detail.fileUrl ?? null,
-    referenceUrl: detail.referenceUrl ?? detail.fileUrl ?? null,
-    testingTypes: detail.testingTypes ?? [],
-    attachmentDownloadUrl: detail.attachmentDownloadUrl ?? null,
-    attachmentFileName: detail.attachmentFileName ?? null,
-    updates: detail.updates ?? [],
-    logs: detail.logs ?? [],
-    bugReports: reports,
   };
 };
 
@@ -460,14 +481,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, placeholder = "S
   </div>
 );
 
-const FilterPanel: React.FC<FilterPanelProps> = ({ filters, productTypes, isOpen, onToggle, onFilterChange }) => {
-  const statusOptions: Array<{ value: FiltersState["status"]; label: string }> = [
-    { value: "all", label: "All statuses" },
-    { value: "pending", label: "Pending" },
-    { value: "in-progress", label: "In progress" },
-    { value: "completed", label: "Completed" },
-    { value: "failed", label: "Blocked / Failed" },
-  ];
+const FilterPanel: React.FC<FilterPanelProps> = ({ filters, productTypes, statusOptions, isOpen, onToggle, onFilterChange }) => {
 
   const priorityOptions: Array<{ value: FiltersState["priority"]; label: string }> = [
     { value: "all", label: "All priorities" },
@@ -590,7 +604,7 @@ const StatChip: React.FC<StatChipProps> = ({ icon: Icon, label, value, accent })
   </div>
 );
 
-const RequestCard: React.FC<RequestCardProps> = ({ item, onSelect }) => (
+const RequestCard: React.FC<RequestCardProps> = ({ item, onSelect, formatStatusLabel }) => (
   <div className="group relative h-full overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-900/50 p-6 backdrop-blur transition-all duration-300 hover:border-cyan-500/40 hover:shadow-xl hover:shadow-cyan-500/10">
     <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
       <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-sky-500/5 to-blue-500/5" />
@@ -602,9 +616,9 @@ const RequestCard: React.FC<RequestCardProps> = ({ item, onSelect }) => (
           <div className="text-xs text-cyan-400/80">{item.code}</div>
           <h3 className="mt-1 text-lg font-light text-white">{item.title}</h3>
         </div>
-        <span className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPillClasses[item.status]}`}>
+        <span className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs ${getStatusBadgeClasses(item.status)}`}>
           {getStatusIcon(item.status)}
-          {humanizeStatus(item.rawStatus)}
+          {formatStatusLabel(item.status)}
         </span>
       </div>
 
@@ -762,9 +776,15 @@ const BugCommentsList = ({ comments }: { comments?: BugComment[] }) => {
 const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
   request,
   onClose,
+  formatStatusLabel,
+  getStatusMeta,
   onCreateTicket,
   creatingTicket = false,
   canCreateTicket = false,
+  onAcceptQuote,
+  onConfirmCompletion,
+  acceptingQuote = false,
+  confirmingCompletion = false,
 }) => {
   if (!request) {
     return null;
@@ -796,9 +816,9 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
               <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
                 <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
                 <div className="mt-2">
-                  <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPillClasses[request.status]}`}>
+                  <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${getStatusBadgeClasses(request.status)}`}>
                     {getStatusIcon(request.status)}
-                    {humanizeStatus(request.rawStatus)}
+                    {formatStatusLabel(request.status)}
                   </span>
                   <div className="mt-1 text-xs text-gray-400">Updated {formatDateTime(request.updatedAt)}</div>
                 </div>
@@ -809,6 +829,58 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                 <span className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs ${priorityClasses[request.priority]}`}>
                   {priorityLabels[request.priority]}
                 </span>
+              </div>
+
+              {typeof request.requestedTokenFee === "number" && (
+                <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Scoping Token Fee</div>
+                  <div className="mt-2 text-lg font-light text-cyan-300">
+                    {request.requestedTokenFee} token{request.requestedTokenFee === 1 ? "" : "s"}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Covers the discovery work QA performs before preparing a detailed quote.
+                  </p>
+                  {request.testingScope?.length ? (
+                    <div className="mt-3 space-y-1 text-xs text-gray-400">
+                      {request.testingScope.map((scope) => (
+                        <div key={`${scope.type}-${scope.tokens}`} className="flex items-center justify-between rounded-md border border-gray-800/60 bg-gray-900/40 px-2 py-1">
+                          <span className="text-gray-300">{scope.type}</span>
+                          <span className="text-cyan-300">{scope.tokens}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Quote Details</div>
+                {request.quotedPrice != null ? (
+                  <>
+                    <div className="mt-2 text-lg font-light text-cyan-300">
+                      {formatCurrencyAmount(request.quotedPrice, request.quoteCurrency)}
+                    </div>
+                    {request.quoteNotes ? (
+                      <p className="mt-2 text-sm text-gray-200">{request.quoteNotes}</p>
+                    ) : null}
+                    <div className="mt-3 space-y-1 text-xs text-gray-400">
+                      {request.quoteSentAt && <div>Sent {formatDateTime(request.quoteSentAt)}</div>}
+                      {request.quoteExpiry && <div>Expires {formatDateTime(request.quoteExpiry)}</div>}
+                      {request.quoteAcceptedAt && (
+                        <div className="text-cyan-300">Accepted {formatDateTime(request.quoteAcceptedAt)}</div>
+                      )}
+                      {request.quoteCustomerNotes && (
+                        <div className="italic text-gray-300">
+                          Your note: {request.quoteCustomerNotes}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-2 text-sm text-gray-400">
+                    Waiting for our QA team to send a formal quote. You&apos;ll be notified once it&apos;s ready.
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
@@ -919,6 +991,30 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                 </div>
               )}
 
+            {request.status === "WAITING_CUSTOMER" && onAcceptQuote && (
+              <button
+                type="button"
+                onClick={() => onAcceptQuote(request)}
+                disabled={acceptingQuote}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {acceptingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                Accept Quote &amp; Start Testing
+              </button>
+            )}
+
+            {request.status === "READY_FOR_REVIEW" && onConfirmCompletion && (
+              <button
+                type="button"
+                onClick={() => onConfirmCompletion(request)}
+                disabled={confirmingCompletion}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {confirmingCompletion ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                Confirm Completion
+              </button>
+            )}
+
             {canCreateTicket && onCreateTicket && (
               <button
                 type="button"
@@ -952,7 +1048,8 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
 
               <div className="space-y-3">
                 {request.updates.map((update) => {
-                  const normalized = normalizeStatus(update.status);
+                  const statusMeta = getStatusMeta(update.status);
+                  const statusCode = statusMeta.code;
                   return (
                     <div key={update.id} className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
                       <div className="flex items-start justify-between gap-3">
@@ -962,9 +1059,9 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                             {buildDisplayName(update.tester)} • {formatDateTime(update.createdAt)}
                           </div>
                         </div>
-                        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusPillClasses[normalized.status]}`}>
-                          {getStatusIcon(normalized.status)}
-                          {humanizeStatus(update.status)}
+                        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${getStatusBadgeClasses(statusCode)}`}>
+                          {getStatusIcon(statusCode)}
+                          {formatStatusLabel(statusCode)}
                         </span>
                       </div>
                     </div>
@@ -1075,6 +1172,142 @@ const MyRequestsPage: React.FC = () => {
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isBuyingTokens, setIsBuyingTokens] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState(false);
+  const [acceptingQuote, setAcceptingQuote] = useState(false);
+  const [confirmingCompletion, setConfirmingCompletion] = useState(false);
+  const [statusOptions, setStatusOptions] = useState<TestingRequestStatusOption[]>([]);
+
+  const statusMap = useMemo(() => {
+    const map: Record<string, TestingRequestStatusOption> = {};
+    statusOptions.forEach((option) => {
+      map[option.code.toUpperCase()] = option;
+    });
+    return map;
+  }, [statusOptions]);
+
+  const getStatusMeta = useCallback(
+    (value?: string | null): TestingRequestStatusOption => {
+      if (!value) {
+        return DEFAULT_STATUS_OPTION;
+      }
+      const key = value.toUpperCase();
+      return statusMap[key] ?? DEFAULT_STATUS_OPTION;
+    },
+    [statusMap],
+  );
+
+  const formatStatusLabel = useCallback(
+    (value: string) => {
+      const meta = getStatusMeta(value);
+      if (meta.code !== DEFAULT_STATUS_OPTION.code || meta.label !== DEFAULT_STATUS_OPTION.label) {
+        return meta.label;
+      }
+      return fallbackStatusLabel(value);
+    },
+    [getStatusMeta],
+  );
+
+  const computeProgressValue = useCallback(
+    (detail: TestingRequestDetails) => {
+      let progress = getStatusMeta(detail.status).progress;
+      detail.updates?.forEach((update) => {
+        const updateProgress = getStatusMeta(update.status).progress;
+        if (updateProgress > progress) {
+          progress = updateProgress;
+        }
+      });
+      return Math.min(100, Math.max(5, progress));
+    },
+    [getStatusMeta],
+  );
+
+  const computeDeadlineValue = useCallback(
+    (detail: TestingRequestDetails, statusCode: string) => computeDeadline(detail, statusCode),
+    [],
+  );
+
+  const statusOptionsForFilter = useMemo(() => {
+    const options: Array<{ value: FiltersState["status"]; label: string }> = [
+      { value: "all", label: "All statuses" },
+    ];
+    statusOptions.forEach((option) => {
+      if (option.code === DEFAULT_STATUS_OPTION.code) {
+        return;
+      }
+      options.push({ value: option.code, label: option.label || fallbackStatusLabel(option.code) });
+    });
+    const [allOption, ...rest] = options;
+    rest.sort((a, b) => {
+      const aIndex = STATUS_ORDER.indexOf(String(a.value).toUpperCase());
+      const bIndex = STATUS_ORDER.indexOf(String(b.value).toUpperCase());
+      const safeA = aIndex === -1 ? STATUS_ORDER.length : aIndex;
+      const safeB = bIndex === -1 ? STATUS_ORDER.length : bIndex;
+      return safeA - safeB;
+    });
+    return [allOption, ...rest];
+  }, [statusOptions]);
+
+  const mapDetailToItem = useCallback(
+    (detail: TestingRequestDetails, reports: BugReport[]): RequestItem => {
+      const statusMeta = getStatusMeta(detail.status);
+      const statusCode = statusMeta.code;
+      const desiredDeadline = detail.desiredDeadline ?? null;
+      const computedDeadline = desiredDeadline ?? computeDeadlineValue(detail, statusCode);
+
+      return {
+        id: detail.id,
+        code: formatRequestId(detail.id),
+        title: detail.title ?? "Untitled request",
+        description: detail.description ?? "",
+        status: statusCode,
+        rawStatus: detail.status ?? "UNKNOWN",
+        progress: computeProgressValue(detail),
+        priority: derivePriority(reports),
+        productType: formatProductType(detail.productType),
+        productTypeRaw: detail.productType?.toUpperCase() ?? "UNKNOWN",
+        createdAt: detail.createdAt ?? "",
+        updatedAt: detail.updatedAt ?? "",
+        deadline: computedDeadline,
+        desiredDeadline,
+        assignedTester: deriveAssignedTester(detail, reports),
+        customerName: buildDisplayName(detail.customer),
+        fileUrl: detail.fileUrl ?? null,
+        referenceUrl: detail.referenceUrl ?? detail.fileUrl ?? null,
+        testingTypes: detail.testingTypes ?? [],
+        attachmentDownloadUrl: detail.attachmentDownloadUrl ?? null,
+        attachmentFileName: detail.attachmentFileName ?? null,
+        updates: detail.updates ?? [],
+        logs: detail.logs ?? [],
+        bugReports: reports,
+        requestedTokenFee: detail.requestedTokenFee ?? null,
+        testingScope: detail.testingScope ?? null,
+        quotedPrice: detail.quotedPrice ?? null,
+        quoteCurrency: detail.quoteCurrency ?? null,
+        quoteNotes: detail.quoteNotes ?? null,
+        quoteCustomerNotes: detail.quoteCustomerNotes ?? null,
+        quoteSentAt: detail.quoteSentAt ?? null,
+        quoteExpiry: detail.quoteExpiry ?? null,
+        quoteAcceptedAt: detail.quoteAcceptedAt ?? null,
+        inProgressAt: detail.inProgressAt ?? null,
+        readyForReviewAt: detail.readyForReviewAt ?? null,
+        completedAt: detail.completedAt ?? null,
+      };
+    },
+    [computeDeadlineValue, computeProgressValue, getStatusMeta],
+  );
+
+  useEffect(() => {
+    const loadStatuses = async () => {
+      try {
+        const response = await getTestingRequestStatusesAPI();
+        setStatusOptions(response);
+      } catch (error) {
+        console.error("Failed to load testing request statuses", error);
+        toast.error("Unable to load status dictionary. Some labels may appear generic.");
+      }
+    };
+
+    loadStatuses();
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -1122,7 +1355,7 @@ const ownerId = user?.id ?? null;
         return;
       }
 
-      if (request.status !== "completed") {
+      if (request.status !== 'COMPLETED') {
         toast.error("Support tickets can only be created for completed requests.");
         return;
       }
@@ -1194,7 +1427,8 @@ const ownerId = user?.id ?? null;
   }, [authLoading, fetchTokenInfo]);
 
   const fetchRequests = useCallback(
-    async (variant: "initial" | "refresh" = "initial") => {
+    async (variant: "initial" | "refresh" = "initial"): Promise<RequestItem[]> => {
+      let mapped: RequestItem[] = [];
       if (ownerId === null) {
         setRequests([]);
         if (variant === "initial") {
@@ -1202,7 +1436,7 @@ const ownerId = user?.id ?? null;
         } else {
           setIsRefreshing(false);
         }
-        return;
+        return mapped;
       }
 
       if (variant === "initial") {
@@ -1227,7 +1461,7 @@ const ownerId = user?.id ?? null;
 
         const ownedRequests = requestDetails.filter((detail) => detail.customer?.id === ownerId);
 
-        const mapped = ownedRequests.map((detail) => {
+        mapped = ownedRequests.map((detail) => {
           const reports = bugByRequest.get(detail.id) ?? [];
           return mapDetailToItem(detail, reports);
         });
@@ -1243,10 +1477,66 @@ const ownerId = user?.id ?? null;
         } else {
           setIsRefreshing(false);
         }
+        return mapped;
       }
     },
-    [ownerId],
+    [ownerId, mapDetailToItem],
   );
+
+  const refreshRequestsAndSelect = useCallback(
+    async (requestId: number) => {
+      const updated = await fetchRequests("refresh");
+      const refreshed = updated.find((item) => item.id === requestId) ?? null;
+      setSelectedRequest(refreshed);
+    },
+    [fetchRequests],
+  );
+
+  const handleAcceptQuote = useCallback(
+    async (request: RequestItem) => {
+      if (acceptingQuote) {
+        return;
+      }
+      setAcceptingQuote(true);
+      try {
+        await acceptTestingQuoteAPI(request.id);
+        toast.success("Quote accepted. Our QA team will begin their work.");
+        await refreshRequestsAndSelect(request.id);
+      } catch (error) {
+        console.error("Failed to accept quote", error);
+        toast.error("Unable to accept the quote at this time.");
+      } finally {
+        setAcceptingQuote(false);
+      }
+    },
+    [acceptingQuote, refreshRequestsAndSelect],
+  );
+
+  const handleConfirmCompletion = useCallback(
+    async (request: RequestItem) => {
+      if (confirmingCompletion) {
+        return;
+      }
+      setConfirmingCompletion(true);
+      try {
+        await confirmTestingCompletionAPI(request.id);
+        toast.success("Thanks for confirming the testing results.");
+        await refreshRequestsAndSelect(request.id);
+      } catch (error) {
+        console.error("Failed to confirm completion", error);
+        toast.error("Unable to confirm completion right now.");
+      } finally {
+        setConfirmingCompletion(false);
+      }
+    },
+    [confirmingCompletion, refreshRequestsAndSelect],
+  );
+
+  useEffect(() => {
+    if (statusOptions.length > 0 && ownerId !== null) {
+      fetchRequests("refresh");
+    }
+  }, [statusOptions, ownerId, fetchRequests]);
 
   useEffect(() => {
     if (authLoading) {
@@ -1289,7 +1579,7 @@ const ownerId = user?.id ?? null;
           item.assignedTester,
           item.productType,
           item.customerName,
-          humanizeStatus(item.rawStatus),
+          formatStatusLabel(item.status),
         ];
         return haystacks.some((value) => value.toLowerCase().includes(term));
       });
@@ -1314,7 +1604,11 @@ const ownerId = user?.id ?? null;
         case "progress":
           return a.progress - b.progress;
         case "status":
-          return statusWeights[a.status] - statusWeights[b.status];
+          const aIndex = STATUS_ORDER.indexOf(a.status.toUpperCase());
+          const bIndex = STATUS_ORDER.indexOf(b.status.toUpperCase());
+          const safeA = aIndex === -1 ? STATUS_ORDER.length : aIndex;
+          const safeB = bIndex === -1 ? STATUS_ORDER.length : bIndex;
+          return safeA - safeB;
         case "title":
         default:
           return a.title.localeCompare(b.title);
@@ -1345,11 +1639,13 @@ const ownerId = user?.id ?? null;
     let inProgress = 0;
     let completed = 0;
     let highPriority = 0;
+    const activeStatuses = new Set(["NEW", "PENDING", "WAITING_CUSTOMER", "IN_PROGRESS", "READY_FOR_REVIEW"]);
     requests.forEach((item) => {
-      if (item.status === "completed") {
+      const statusCode = item.status.toUpperCase();
+      if (statusCode === "COMPLETED") {
         completed += 1;
       }
-      if (item.status === "in-progress" || item.status === "pending") {
+      if (activeStatuses.has(statusCode)) {
         inProgress += 1;
       }
       if (item.priority === "urgent" || item.priority === "high") {
@@ -1552,6 +1848,7 @@ const ownerId = user?.id ?? null;
             <FilterPanel
               filters={filters}
               productTypes={productTypes}
+              statusOptions={statusOptionsForFilter}
               isOpen={isFilterOpen}
               onToggle={() => setIsFilterOpen((prev) => !prev)}
               onFilterChange={handleFilterChange}
@@ -1575,7 +1872,12 @@ const ownerId = user?.id ?? null;
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {paginatedRequests.map((request) => (
-              <RequestCard key={request.id} item={request} onSelect={setSelectedRequest} />
+              <RequestCard
+                key={request.id}
+                item={request}
+                onSelect={setSelectedRequest}
+                formatStatusLabel={formatStatusLabel}
+              />
             ))}
           </div>
         )}
@@ -1599,27 +1901,18 @@ const ownerId = user?.id ?? null;
       <RequestDetailsDrawer
         request={selectedRequest}
         onClose={() => setSelectedRequest(null)}
+        formatStatusLabel={formatStatusLabel}
+        getStatusMeta={getStatusMeta}
         onCreateTicket={handleCreateTicketFromRequest}
         creatingTicket={creatingTicket}
-        canCreateTicket={Boolean(selectedRequest && selectedRequest.status === "completed" && !isStaff)}
+        canCreateTicket={Boolean(selectedRequest && selectedRequest.status === "COMPLETED" && !isStaff)}
+        onAcceptQuote={handleAcceptQuote}
+        onConfirmCompletion={handleConfirmCompletion}
+        acceptingQuote={acceptingQuote}
+        confirmingCompletion={confirmingCompletion}
       />
     </div>
   );
 };
 
 export default MyRequestsPage;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

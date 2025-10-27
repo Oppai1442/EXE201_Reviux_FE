@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from 'react';
 import {
   Search,
   Filter,
@@ -19,7 +19,11 @@ import {
 import { toast } from 'react-hot-toast';
 
 import { useAuth } from '@/context/AuthContext';
-
+import AssignTesterForm from './components/AssignTesterForm';
+import QuoteForm, { type QuoteFormState } from './components/QuoteForm';
+import StatusUpdateForm from './components/StatusUpdateForm';
+import TestLogForm from './components/TestLogForm';
+import BugReportForm from './components/BugReportForm';
 import {
   getBugReportsAPI,
   getTestingRequestDetailsAPI,
@@ -27,13 +31,18 @@ import {
   createTestLogAPI,
   createBugReportAPI,
   getAssignableTestersAPI,
+  getTestingRequestStatusesAPI,
+  updateTestingRequestStatusAPI,
+  sendTestingQuoteAPI,
+  markReadyForReviewAPI,
   type BugReport,
   type TestingRequestDetails,
   type TestingUpdateInfo,
   type AssignableTester,
+  type TestingRequestStatusOption,
 } from './services/testingRequestService';
 
-type RequestStatus = 'pending' | 'in-progress' | 'completed' | 'failed';
+type RequestStatus = string;
 type RequestPriority = 'urgent' | 'high' | 'medium' | 'low';
 type SortKey = 'id' | 'projectName' | 'testType' | 'status' | 'priority' | 'createdAt' | 'deadline';
 type SortDirection = 'asc' | 'desc';
@@ -69,19 +78,6 @@ interface RequestTableItem {
 
 const DEFAULT_PRIORITY: RequestPriority = 'medium';
 
-const statusDictionary: Record<string, { status: RequestStatus; progress: number }> = {
-  NEW: { status: 'pending', progress: 15 },
-  QUEUED: { status: 'pending', progress: 20 },
-  PENDING_REVIEW: { status: 'in-progress', progress: 55 },
-  WAITING_CUSTOMER: { status: 'in-progress', progress: 45 },
-  IN_PROGRESS: { status: 'in-progress', progress: 65 },
-  READY_FOR_REVIEW: { status: 'in-progress', progress: 85 },
-  COMPLETED: { status: 'completed', progress: 100 },
-  BLOCKED: { status: 'failed', progress: 35 },
-  FAILED: { status: 'failed', progress: 25 },
-  CANCELLED: { status: 'failed', progress: 20 },
-};
-
 const severityPriorityMap: Record<string, RequestPriority> = {
   CRITICAL: 'urgent',
   HIGH: 'high',
@@ -95,31 +91,38 @@ const productTypeTestMap: Record<string, string> = {
   API: 'performance',
 };
 
-const normalizeStatus = (value?: string | null): { status: RequestStatus; progress: number } => {
-  if (!value) {
-    return { status: 'pending', progress: 20 };
-  }
-  const normalized = statusDictionary[value.toUpperCase()];
-  if (normalized) {
-    return normalized;
-  }
-  return { status: 'pending', progress: 20 };
+const STATUS_DEADLINE_OFFSETS: Record<string, number> = {
+  NEW: 10,
+  PENDING: 7,
+  WAITING_CUSTOMER: 5,
+  IN_PROGRESS: 14,
+  READY_FOR_REVIEW: 3,
+  COMPLETED: 0,
+  CANCELLED: 0,
+  EXPIRED: 0,
 };
 
-const computeProgress = (detail: TestingRequestDetails): number => {
-  let progress = normalizeStatus(detail.status).progress;
-
-  if (detail.updates?.length) {
-    detail.updates.forEach((update) => {
-      const mapped = normalizeStatus(update.status);
-      if (mapped.progress > progress) {
-        progress = mapped.progress;
-      }
-    });
-  }
-
-  return Math.min(100, Math.max(5, progress));
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  NEW: ['PENDING', 'CANCELLED'],
+  PENDING: ['CANCELLED'],
+  WAITING_CUSTOMER: ['CANCELLED', 'EXPIRED'],
+  IN_PROGRESS: ['READY_FOR_REVIEW', 'CANCELLED'],
+  READY_FOR_REVIEW: ['COMPLETED'],
 };
+
+const DEFAULT_STATUS_OPTION: TestingRequestStatusOption = {
+  code: 'UNKNOWN',
+  label: 'Pending',
+  description: 'Awaiting next action',
+  progress: 20,
+  terminal: false,
+};
+
+const fallbackStatusLabel = (status: string) =>
+  status
+    .replace(/[_-]+/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 
 const buildTesterName = (tester: TestingUpdateInfo['tester'] | BugReport['tester']): string => {
   if (!tester) {
@@ -191,19 +194,11 @@ const deriveTestType = (productType?: string | null): string => {
   return productTypeTestMap[productType.toUpperCase()] ?? 'compatibility';
 };
 
-const computeDeadline = (detail: TestingRequestDetails, status: RequestStatus): string => {
+const computeDeadline = (detail: TestingRequestDetails, statusCode: string): string => {
   const base = detail.updatedAt ?? detail.createdAt;
   const baseDate = base ? new Date(base) : new Date();
-
-  const statusOffsets: Record<RequestStatus, number> = {
-    pending: 10,
-    'in-progress': 14,
-    completed: 0,
-    failed: 5,
-  };
-
   const deadline = new Date(baseDate.getTime());
-  const offsetDays = statusOffsets[status] ?? 10;
+  const offsetDays = STATUS_DEADLINE_OFFSETS[statusCode] ?? 10;
   if (offsetDays > 0) {
     deadline.setDate(deadline.getDate() + offsetDays);
   }
@@ -251,13 +246,35 @@ const formatDateTime = (date?: string | null) => {
   });
 };
 
-const ASSIGN_STATUS_OPTIONS = ['IN_PROGRESS', 'READY_FOR_REVIEW', 'WAITING_CUSTOMER', 'COMPLETED'];
+const formatCurrencyAmount = (amount?: number | null, currency?: string | null) => {
+  if (amount === null || amount === undefined) {
+    return '—';
+  }
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount)) {
+    return '—';
+  }
+  const normalizedCurrency =
+    currency && currency.trim().length > 0 ? currency.trim().toUpperCase() : 'USD';
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: normalizedCurrency,
+    }).format(numericAmount);
+  } catch (error) {
+    return `${normalizedCurrency} ${numericAmount.toFixed(2)}`;
+  }
+};
+
+const ASSIGN_STATUS_OPTIONS = ['PENDING', 'WAITING_CUSTOMER', 'IN_PROGRESS', 'READY_FOR_REVIEW', 'COMPLETED', 'CANCELLED'];
 const TEST_LOG_LEVELS = ['INFO', 'WARN', 'ERROR'];
 const BUG_SEVERITY_OPTIONS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 const BUG_STATUS_OPTIONS = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 const ASSIGN_FORM_INITIAL = { testerId: '', status: 'IN_PROGRESS', note: '' };
 const TEST_LOG_FORM_INITIAL = { level: 'INFO', message: '' };
 const BUG_REPORT_FORM_INITIAL = { title: '', description: '', severity: 'MEDIUM', status: 'OPEN', testerId: '' };
+const STATUS_FORM_INITIAL = { status: '' };
+const QUOTE_FORM_INITIAL: QuoteFormState = { amount: '', currency: 'USD', expiryDays: '7', notes: '' };
 
 const TestRequestManagement = () => {
   const { user } = useAuth();
@@ -276,13 +293,105 @@ const TestRequestManagement = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RequestTableItem | null>(null);
-  const [activeForm, setActiveForm] = useState<'assign' | 'testLog' | 'bugReport' | null>(null);
+  const [activeForm, setActiveForm] = useState<'assign' | 'testLog' | 'bugReport' | 'status' | 'quote' | null>(null);
   const [testerOptions, setTesterOptions] = useState<AssignableTester[]>([]);
   const [assignForm, setAssignForm] = useState(() => ({ ...ASSIGN_FORM_INITIAL }));
   const [testLogForm, setTestLogForm] = useState(() => ({ ...TEST_LOG_FORM_INITIAL }));
   const [bugReportForm, setBugReportForm] = useState(() => ({ ...BUG_REPORT_FORM_INITIAL }));
+  const [statusForm, setStatusForm] = useState(() => ({ ...STATUS_FORM_INITIAL }));
+  const [quoteForm, setQuoteForm] = useState<QuoteFormState>(() => ({ ...QUOTE_FORM_INITIAL }));
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [lifecycleLoading, setLifecycleLoading] = useState(false);
+  const [statusOptions, setStatusOptions] = useState<TestingRequestStatusOption[]>([]);
+
+  const statusMap = useMemo(() => {
+    const map: Record<string, TestingRequestStatusOption> = {};
+    statusOptions.forEach((option) => {
+      map[option.code.toUpperCase()] = option;
+    });
+    return map;
+  }, [statusOptions]);
+
+  const statusOptionsForForm = useMemo(
+    () => statusOptions.filter((option) => option.code !== DEFAULT_STATUS_OPTION.code),
+    [statusOptions],
+  );
+
+  const statusOptionsForRequest = useMemo(() => {
+    if (!selectedRequest) {
+      return statusOptionsForForm;
+    }
+    const allowed = STATUS_TRANSITIONS[selectedRequest.status] ?? [];
+    if (allowed.length === 0) {
+      return statusOptionsForForm.filter((option) => option.code === selectedRequest.status);
+    }
+    return statusOptionsForForm.filter((option) => allowed.includes(option.code));
+  }, [selectedRequest, statusOptionsForForm]);
+
+  const getStatusMeta = useCallback(
+    (value?: string | null): TestingRequestStatusOption => {
+      if (!value) {
+        return DEFAULT_STATUS_OPTION;
+      }
+      const key = value.toUpperCase();
+      return statusMap[key] ?? DEFAULT_STATUS_OPTION;
+    },
+    [statusMap],
+  );
+
+  const isTerminalStatus = useCallback(
+    (value: string) => getStatusMeta(value).terminal,
+    [getStatusMeta],
+  );
+
+  const formatStatusLabel = useCallback(
+    (value: string) => {
+      const meta = getStatusMeta(value);
+      if (meta.code !== DEFAULT_STATUS_OPTION.code || meta.label !== DEFAULT_STATUS_OPTION.label) {
+        return meta.label;
+      }
+      return fallbackStatusLabel(value);
+    },
+    [getStatusMeta],
+  );
+
+  const computeProgressValue = useCallback(
+    (detail: TestingRequestDetails) => {
+      let progress = getStatusMeta(detail.status).progress;
+      detail.updates?.forEach((update) => {
+        const updateProgress = getStatusMeta(update.status).progress;
+        if (updateProgress > progress) {
+          progress = updateProgress;
+        }
+      });
+      return Math.min(100, Math.max(5, progress));
+    },
+    [getStatusMeta],
+  );
+
+  const computeDeadlineValue = useCallback(
+    (detail: TestingRequestDetails, statusCode: string) => computeDeadline(detail, statusCode),
+    [],
+  );
+
+  const canSendQuote = selectedRequest?.status === 'PENDING';
+  const canMarkReadyForReview = selectedRequest?.status === 'IN_PROGRESS';
+  const selectedStatusIsTerminal = selectedRequest ? isTerminalStatus(selectedRequest.status) : false;
+
+  useEffect(() => {
+    const loadStatuses = async () => {
+      try {
+        const response = await getTestingRequestStatusesAPI();
+        setStatusOptions(response);
+      } catch (error) {
+        console.error('Failed to load testing request statuses', error);
+        toast.error('Unable to load request statuses. Some visual indicators may be inaccurate.');
+      }
+    };
+
+    loadStatuses();
+  }, []);
 
   const refreshSelectedRequest = async (requestId: number) => {
     const updated = await fetchRequests({ silent: true, suppressMessages: true });
@@ -290,9 +399,59 @@ const TestRequestManagement = () => {
     setSelectedRequest(refreshed ?? null);
   };
 
-  const handleToggleForm = (form: 'assign' | 'testLog' | 'bugReport') => {
+  const handleToggleForm = (form: 'assign' | 'testLog' | 'bugReport' | 'status' | 'quote') => {
     setFormSubmitting(false);
-    setActiveForm((prev) => (prev === form ? null : form));
+    const isSame = activeForm === form;
+    const nextForm = isSame ? null : form;
+
+    if (!isSame) {
+      if (form === 'quote') {
+        if (selectedRequest?.details) {
+          const { details } = selectedRequest;
+          const amount = details.quotedPrice != null ? String(details.quotedPrice) : QUOTE_FORM_INITIAL.amount;
+          const currency = details.quoteCurrency ?? QUOTE_FORM_INITIAL.currency;
+          const expiry = (() => {
+            if (details.quoteExpiry) {
+              const expiryDate = new Date(details.quoteExpiry);
+              const baseDate = details.quoteSentAt ? new Date(details.quoteSentAt) : new Date();
+              const diffMs = expiryDate.getTime() - baseDate.getTime();
+              if (Number.isFinite(diffMs) && diffMs > 0) {
+                return String(Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24))));
+              }
+            }
+            return QUOTE_FORM_INITIAL.expiryDays;
+          })();
+          setQuoteForm({
+            amount,
+            currency: currency.toUpperCase(),
+            expiryDays: expiry,
+            notes: details.quoteNotes ?? '',
+          });
+        } else {
+          setQuoteForm({ ...QUOTE_FORM_INITIAL });
+        }
+      } else {
+        setQuoteForm({ ...QUOTE_FORM_INITIAL });
+      }
+
+      if (form === 'status') {
+        if (selectedRequest) {
+          const allowed = STATUS_TRANSITIONS[selectedRequest.status] ?? [];
+          setStatusForm({ status: allowed[0] ?? '' });
+        } else {
+          setStatusForm({ ...STATUS_FORM_INITIAL });
+        }
+      }
+    } else {
+      if (form === 'quote') {
+        setQuoteForm({ ...QUOTE_FORM_INITIAL });
+      }
+      if (form === 'status') {
+        setStatusForm({ ...STATUS_FORM_INITIAL });
+      }
+    }
+
+    setActiveForm(nextForm);
   };
 
   const getCurrentUserDisplayName = () => {
@@ -418,6 +577,107 @@ const TestRequestManagement = () => {
     }
   };
 
+  const handleQuoteSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedRequest) {
+      return;
+    }
+
+    const amountValue = Number.parseFloat(quoteForm.amount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      toast.error('Please provide a valid quote amount greater than zero.');
+      return;
+    }
+
+    const currencyValue = quoteForm.currency.trim().toUpperCase();
+    if (!currencyValue) {
+      toast.error('Currency is required.');
+      return;
+    }
+
+    let expiryValue: number | undefined;
+    if (quoteForm.expiryDays.trim()) {
+      const parsed = Number.parseInt(quoteForm.expiryDays, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        toast.error('Expiry days must be a positive number.');
+        return;
+      }
+      expiryValue = parsed;
+    }
+
+    setFormSubmitting(true);
+    try {
+      await sendTestingQuoteAPI(selectedRequest.numericId, {
+        quotedPrice: Number(amountValue.toFixed(2)),
+        currency: currencyValue,
+        expiryDays: expiryValue,
+        notes: quoteForm.notes.trim() || undefined,
+      });
+      toast.success('Quote sent to customer.');
+      setActiveForm(null);
+      await refreshSelectedRequest(selectedRequest.numericId);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to send quote.');
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  const handleStatusSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedRequest) {
+      return;
+    }
+
+    const requestId = selectedRequest.numericId;
+    const newStatus = statusForm.status;
+    if (!newStatus) {
+      toast.error('Please select a status before updating.');
+      return;
+    }
+
+    if (selectedRequest.status === newStatus) {
+      toast.error('Request is already in this status.');
+      return;
+    }
+
+    if (!statusOptionsForRequest.some((option) => option.code === newStatus)) {
+      toast.error('Selected status is not available for this request.');
+      return;
+    }
+
+    setFormSubmitting(true);
+    try {
+      await updateTestingRequestStatusAPI(requestId, newStatus);
+      toast.success('Request status updated.');
+      setActiveForm(null);
+      await refreshSelectedRequest(requestId);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to update request status.');
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  const handleMarkReadyForReview = async () => {
+    if (!selectedRequest) {
+      return;
+    }
+    setLifecycleLoading(true);
+    try {
+      await markReadyForReviewAPI(selectedRequest.numericId);
+      toast.success('Request marked ready for customer review.');
+      await refreshSelectedRequest(selectedRequest.numericId);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to update request status.');
+    } finally {
+      setLifecycleLoading(false);
+    }
+  };
+
   const handleBugReportSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedRequest) {
@@ -508,19 +768,20 @@ const TestRequestManagement = () => {
 
       const mappedRequests: RequestTableItem[] = requestDetails.map((detail) => {
         const associatedBugs = bugReportsByRequest.get(detail.id) ?? [];
-        const normalizedStatus = normalizeStatus(detail.status);
+        const statusMeta = getStatusMeta(detail.status);
+        const statusCode = statusMeta.code;
 
         return {
           id: formatRequestId(detail.id),
           numericId: detail.id,
           projectName: detail.title ?? 'Untitled Request',
           testType: deriveTestType(detail.productType),
-          status: normalizedStatus.status,
+          status: statusCode,
           priority: derivePriority(associatedBugs),
           createdAt: detail.createdAt,
-          deadline: computeDeadline(detail, normalizedStatus.status),
+          deadline: computeDeadlineValue(detail, statusCode),
           description: detail.description ?? '',
-          progress: computeProgress(detail),
+          progress: computeProgressValue(detail),
           assignedTester: deriveAssignedTester(detail, associatedBugs),
           fileUrl: detail.attachmentDownloadUrl ?? detail.fileUrl ?? null,
           details: detail,
@@ -548,6 +809,12 @@ const TestRequestManagement = () => {
       }
     }
   };
+
+  useEffect(() => {
+    if (statusOptions.length > 0) {
+      void fetchRequests({ silent: true, suppressMessages: true });
+    }
+  }, [statusOptions]);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -590,7 +857,18 @@ const TestRequestManagement = () => {
     if (activeForm !== 'bugReport') {
       setBugReportForm({ ...BUG_REPORT_FORM_INITIAL });
     }
-  }, [activeForm, testerOptions.length, fetchAssignableTesters]);
+
+    if (activeForm !== 'quote') {
+      setQuoteForm({ ...QUOTE_FORM_INITIAL });
+    }
+
+    if (activeForm === 'status') {
+      const allowed = selectedRequest ? STATUS_TRANSITIONS[selectedRequest.status] ?? [] : [];
+      setStatusForm({ status: allowed[0] ?? '' });
+    } else {
+      setStatusForm({ ...STATUS_FORM_INITIAL });
+    }
+  }, [activeForm, testerOptions.length, fetchAssignableTesters, selectedRequest]);
 
   useEffect(() => {
     if (!selectedRequest) {
@@ -710,28 +988,46 @@ const TestRequestManagement = () => {
   };
 
   const getStatusIcon = (status: RequestStatus) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-400" />;
-      case 'in-progress':
-        return <Clock className="w-4 h-4 text-cyan-400" />;
-      case 'failed':
-        return <XCircle className="w-4 h-4 text-red-400" />;
+    const code = (status ?? '').toUpperCase();
+    switch (code) {
+      case 'COMPLETED':
+        return <CheckCircle className="w-4 h-4 text-emerald-300" />;
+      case 'READY_FOR_REVIEW':
+        return <Eye className="w-4 h-4 text-purple-300" />;
+      case 'IN_PROGRESS':
+        return <Loader2 className="w-4 h-4 text-cyan-300" />;
+      case 'WAITING_CUSTOMER':
+        return <AlertCircle className="w-4 h-4 text-amber-300" />;
+      case 'CANCELLED':
+      case 'EXPIRED':
+        return <XCircle className="w-4 h-4 text-rose-300" />;
+      case 'NEW':
+      case 'PENDING':
+        return <Clock className="w-4 h-4 text-sky-300" />;
       default:
-        return <AlertCircle className="w-4 h-4 text-yellow-400" />;
+        return <AlertCircle className="w-4 h-4 text-slate-300" />;
     }
   };
 
   const getStatusColor = (status: RequestStatus) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-400/10 text-green-400 border-green-400/20';
-      case 'in-progress':
-        return 'bg-cyan-400/10 text-cyan-400 border-cyan-400/20';
-      case 'failed':
-        return 'bg-red-400/10 text-red-400 border-red-400/20';
+    const code = (status ?? '').toUpperCase();
+    switch (code) {
+      case 'COMPLETED':
+        return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25';
+      case 'READY_FOR_REVIEW':
+        return 'bg-purple-500/10 text-purple-300 border-purple-500/30';
+      case 'IN_PROGRESS':
+        return 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30';
+      case 'WAITING_CUSTOMER':
+        return 'bg-amber-500/10 text-amber-300 border-amber-500/25';
+      case 'CANCELLED':
+      case 'EXPIRED':
+        return 'bg-rose-500/10 text-rose-300 border-rose-500/30';
+      case 'NEW':
+      case 'PENDING':
+        return 'bg-sky-500/10 text-sky-300 border-sky-500/25';
       default:
-        return 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20';
+        return 'bg-slate-500/10 text-slate-300 border-slate-500/25';
     }
   };
 
@@ -824,10 +1120,11 @@ const TestRequestManagement = () => {
                   onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value as FiltersState['status'] }))}
                 >
                   <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                  <option value="failed">Failed</option>
+                  {statusOptions.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -989,7 +1286,7 @@ const TestRequestManagement = () => {
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${getStatusColor(request.status)}`}>
                           {getStatusIcon(request.status)}
-                          {request.status.replace('-', ' ')}
+                          {formatStatusLabel(request.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -1086,8 +1383,8 @@ const TestRequestManagement = () => {
                   key={page}
                   onClick={() => setCurrentPage(page)}
                   className={`px-3 py-2 rounded-lg font-light transition-all duration-300 ${currentPage === page
-                      ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/25'
-                      : 'bg-gray-900/50 border border-gray-800/50 hover:bg-gray-800/50'
+                    ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/25'
+                    : 'bg-gray-900/50 border border-gray-800/50 hover:bg-gray-800/50'
                     }`}
                 >
                   {page}
@@ -1137,7 +1434,7 @@ const TestRequestManagement = () => {
                   <div className="mt-1">
                     <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${getStatusColor(selectedRequest.status)}`}>
                       {getStatusIcon(selectedRequest.status)}
-                      {selectedRequest.status.replace('-', ' ')}
+                      {formatStatusLabel(selectedRequest.status)}
                     </span>
                   </div>
                 </div>
@@ -1147,6 +1444,66 @@ const TestRequestManagement = () => {
                   <span className={`mt-1 inline-flex items-center px-3 py-1 rounded-full text-xs border capitalize ${getPriorityColor(selectedRequest.priority)}`}>
                     {selectedRequest.priority}
                   </span>
+                </div>
+
+                {typeof selectedRequest.details.requestedTokenFee === 'number' && (
+                  <div className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-4">
+                    <div className="text-xs uppercase tracking-wide text-gray-500">Scoping Token Fee</div>
+                    <div className="mt-1 text-lg font-light text-cyan-300">
+                      {selectedRequest.details.requestedTokenFee} token{selectedRequest.details.requestedTokenFee === 1 ? '' : 's'}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Tokens collected to cover discovery work before sending a detailed quote.
+                    </p>
+                    {selectedRequest.details.testingScope?.length ? (
+                      <div className="mt-3 space-y-1 text-xs text-gray-400">
+                        {selectedRequest.details.testingScope.map((scope) => (
+                          <div key={`${scope.type}-${scope.tokens}`} className="flex items-center justify-between rounded-md border border-gray-800/60 bg-gray-900/40 px-2 py-1">
+                            <span className="text-gray-300">{scope.type}</span>
+                            <span className="text-cyan-300">{scope.tokens}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-4">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Quote Details</div>
+                  {selectedRequest.details.quotedPrice != null ? (
+                    <>
+                      <div className="mt-1 text-lg font-light text-cyan-300">
+                        {formatCurrencyAmount(selectedRequest.details.quotedPrice, selectedRequest.details.quoteCurrency)}
+                      </div>
+                      {selectedRequest.details.quoteNotes ? (
+                        <p className="mt-2 text-sm font-light text-gray-300">
+                          {selectedRequest.details.quoteNotes}
+                        </p>
+                      ) : null}
+                      <div className="mt-3 space-y-1 text-xs text-gray-400">
+                        {selectedRequest.details.quoteSentAt && (
+                          <div>Sent {formatDateTime(selectedRequest.details.quoteSentAt)}</div>
+                        )}
+                        {selectedRequest.details.quoteExpiry && (
+                          <div>Expires {formatDateTime(selectedRequest.details.quoteExpiry)}</div>
+                        )}
+                        {selectedRequest.details.quoteAcceptedAt && (
+                          <div className="text-cyan-300">
+                            Accepted {formatDateTime(selectedRequest.details.quoteAcceptedAt)}
+                          </div>
+                        )}
+                        {selectedRequest.details.quoteCustomerNotes && (
+                          <div className="italic text-gray-300">
+                            Customer note: {selectedRequest.details.quoteCustomerNotes}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-2 text-sm font-light text-gray-400">
+                      No quote sent yet. Prepare pricing once the scope is approved.
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-4">
@@ -1179,12 +1536,12 @@ const TestRequestManagement = () => {
                     disabled={
                       actionLoading ||
                       selectedRequest.assignedTester !== 'Unassigned' ||
-                      selectedRequest.status === 'completed'
+                      selectedStatusIsTerminal
                     }
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    {selectedRequest.status === 'completed'
+                    {selectedStatusIsTerminal
                       ? 'Request Completed'
                       : selectedRequest.assignedTester === 'Unassigned'
                         ? 'Claim Request'
@@ -1194,24 +1551,48 @@ const TestRequestManagement = () => {
 
                 <button
                   type="button"
+                  onClick={() => handleToggleForm('quote')}
+                  disabled={!canSendQuote || selectedStatusIsTerminal}
+                  className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'quote'
+                    ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
+                    : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
+                    } ${!canSendQuote || selectedStatusIsTerminal ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
+                >
+                  Send Quote
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => handleToggleForm('assign')}
-                  disabled={selectedRequest.status === 'completed'}
+                  disabled={selectedStatusIsTerminal}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'assign'
-                      ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
-                      : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    } ${selectedRequest.status === 'completed' ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
+                    ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
+                    : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
+                    } ${selectedStatusIsTerminal ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Assign Tester
                 </button>
 
                 <button
                   type="button"
+                  onClick={() => handleToggleForm('status')}
+                  disabled={selectedStatusIsTerminal || statusOptionsForRequest.length === 0}
+                  className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'status'
+                    ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
+                    : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
+                    } ${selectedStatusIsTerminal || statusOptionsForRequest.length === 0 ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
+                >
+                  Update Status
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => handleToggleForm('testLog')}
-                  disabled={selectedRequest.status === 'completed'}
+                  disabled={selectedStatusIsTerminal}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'testLog'
-                      ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
-                      : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    } ${selectedRequest.status === 'completed' ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
+                    ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
+                    : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
+                    } ${selectedStatusIsTerminal ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Add Test Log
                 </button>
@@ -1219,15 +1600,24 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('bugReport')}
-                  disabled={selectedRequest.status === 'completed'}
+                  disabled={selectedStatusIsTerminal}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'bugReport'
-                      ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
-                      : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    } ${selectedRequest.status === 'completed' ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
+                    ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
+                    : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
+                    } ${selectedStatusIsTerminal ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Add Bug Report
                 </button>
 
+                <button
+                  type="button"
+                  onClick={handleMarkReadyForReview}
+                  disabled={!canMarkReadyForReview || lifecycleLoading}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {lifecycleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  Mark Ready For Review
+                </button>
               </div>
             </div>
 
@@ -1235,216 +1625,63 @@ const TestRequestManagement = () => {
             <div className="flex-1 overflow-y-auto p-6">
               {/* Forms Section */}
               {activeForm === 'assign' && (
-                <div className="mb-6 rounded-xl border border-cyan-500/40 bg-cyan-500/10 p-5">
-                  <h3 className="text-lg font-light text-white mb-4">Assign Tester</h3>
-                  <form onSubmit={handleAssignSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-wide text-gray-300">Tester</label>
-                        <select
-                          value={assignForm.testerId}
-                          onChange={(event) => setAssignForm((prev) => ({ ...prev, testerId: event.target.value }))}
-                          className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                          required
-                        >
-                          <option value="">Select tester</option>
-                          {testerOptions.map((tester) => (
-                            <option key={tester.id} value={tester.id}>
-                              {tester.fullName || tester.email || `User ${tester.id}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-wide text-gray-300">Status</label>
-                        <select
-                          value={assignForm.status}
-                          onChange={(event) => setAssignForm((prev) => ({ ...prev, status: event.target.value }))}
-                          className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        >
-                          {ASSIGN_STATUS_OPTIONS.map((status) => (
-                            <option key={status} value={status}>
-                              {humanizeStatus(status)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-wide text-gray-300">Note (optional)</label>
-                      <textarea
-                        value={assignForm.note}
-                        onChange={(event) => setAssignForm((prev) => ({ ...prev, note: event.target.value }))}
-                        rows={3}
-                        placeholder="Optional message for this assignment"
-                        className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setActiveForm(null)}
-                        className="rounded-lg border border-gray-800/60 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:border-gray-700 hover:text-white"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={formSubmitting}
-                        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {formSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                        Assign
-                      </button>
-                    </div>
-                  </form>
-                </div>
+                <AssignTesterForm
+                  assignForm={assignForm}
+                  assignStatusOptions={ASSIGN_STATUS_OPTIONS}
+                  testerOptions={testerOptions}
+                  formSubmitting={formSubmitting}
+                  onSubmit={handleAssignSubmit}
+                  onCancel={() => setActiveForm(null)}
+                  setAssignForm={setAssignForm}
+                  formatStatusLabel={formatStatusLabel}
+                />
+              )}
+
+              {activeForm === 'quote' && (
+                <QuoteForm
+                  quoteForm={quoteForm}
+                  setQuoteForm={setQuoteForm}
+                  formSubmitting={formSubmitting}
+                  onSubmit={handleQuoteSubmit}
+                  onCancel={() => setActiveForm(null)}
+                />
+              )}
+
+              {activeForm === 'status' && (
+                <StatusUpdateForm
+                  statusForm={statusForm}
+                  statusOptions={statusOptionsForRequest}
+                  formSubmitting={formSubmitting}
+                  onSubmit={handleStatusSubmit}
+                  onCancel={() => setActiveForm(null)}
+                  setStatusForm={setStatusForm}
+                  formatStatusLabel={formatStatusLabel}
+                />
               )}
 
               {activeForm === 'testLog' && (
-                <div className="mb-6 rounded-xl border border-cyan-500/40 bg-cyan-500/10 p-5">
-                  <h3 className="text-lg font-light text-white mb-4">Add Test Log</h3>
-                  <form onSubmit={handleTestLogSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-wide text-gray-300">Log Level</label>
-                        <select
-                          value={testLogForm.level}
-                          onChange={(event) => setTestLogForm((prev) => ({ ...prev, level: event.target.value }))}
-                          className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        >
-                          {TEST_LOG_LEVELS.map((level) => (
-                            <option key={level} value={level}>
-                              {level}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-wide text-gray-300">Message</label>
-                      <textarea
-                        value={testLogForm.message}
-                        onChange={(event) => setTestLogForm((prev) => ({ ...prev, message: event.target.value }))}
-                        rows={4}
-                        placeholder="Describe the outcome or error observed during testing"
-                        className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        required
-                      />
-                    </div>
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setActiveForm(null)}
-                        className="rounded-lg border border-gray-800/60 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:border-gray-700 hover:text-white"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={formSubmitting}
-                        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {formSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                        Save Log
-                      </button>
-                    </div>
-                  </form>
-                </div>
+                <TestLogForm
+                  testLogForm={testLogForm}
+                  logLevels={TEST_LOG_LEVELS}
+                  formSubmitting={formSubmitting}
+                  onSubmit={handleTestLogSubmit}
+                  onCancel={() => setActiveForm(null)}
+                  setTestLogForm={setTestLogForm}
+                />
               )}
 
               {activeForm === 'bugReport' && (
-                <div className="mb-6 rounded-xl border border-cyan-500/40 bg-cyan-500/10 p-5">
-                  <h3 className="text-lg font-light text-white mb-4">Add Bug Report</h3>
-                  <form onSubmit={handleBugReportSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-wide text-gray-300">Severity</label>
-                        <select
-                          value={bugReportForm.severity}
-                          onChange={(event) => setBugReportForm((prev) => ({ ...prev, severity: event.target.value }))}
-                          className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        >
-                          {BUG_SEVERITY_OPTIONS.map((severity) => (
-                            <option key={severity} value={severity}>
-                              {severity}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-wide text-gray-300">Status</label>
-                        <select
-                          value={bugReportForm.status}
-                          onChange={(event) => setBugReportForm((prev) => ({ ...prev, status: event.target.value }))}
-                          className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        >
-                          {BUG_STATUS_OPTIONS.map((status) => (
-                            <option key={status} value={status}>
-                              {humanizeStatus(status)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-wide text-gray-300">Assign Tester (optional)</label>
-                        <select
-                          value={bugReportForm.testerId}
-                          onChange={(event) => setBugReportForm((prev) => ({ ...prev, testerId: event.target.value }))}
-                          className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        >
-                          <option value="">Unassigned</option>
-                          {testerOptions.map((tester) => (
-                            <option key={tester.id} value={tester.id}>
-                              {tester.fullName || tester.email || `User ${tester.id}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-wide text-gray-300">Title</label>
-                      <input
-                        type="text"
-                        value={bugReportForm.title}
-                        onChange={(event) => setBugReportForm((prev) => ({ ...prev, title: event.target.value }))}
-                        placeholder="Short summary of the issue"
-                        className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-wide text-gray-300">Description</label>
-                      <textarea
-                        value={bugReportForm.description}
-                        onChange={(event) => setBugReportForm((prev) => ({ ...prev, description: event.target.value }))}
-                        rows={4}
-                        placeholder="Detailed steps to reproduce, expected vs actual behavior."
-                        className="w-full rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                        required
-                      />
-                    </div>
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setActiveForm(null)}
-                        className="rounded-lg border border-gray-800/60 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:border-gray-700 hover:text-white"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={formSubmitting}
-                        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {formSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                        Create Bug Report
-                      </button>
-                    </div>
-                  </form>
-                </div>
+                <BugReportForm
+                  bugReportForm={bugReportForm}
+                  formSubmitting={formSubmitting}
+                  severityOptions={BUG_SEVERITY_OPTIONS}
+                  statusOptions={BUG_STATUS_OPTIONS}
+                  testerOptions={testerOptions}
+                  onSubmit={handleBugReportSubmit}
+                  onCancel={() => setActiveForm(null)}
+                  setBugReportForm={setBugReportForm}
+                  formatStatusLabel={humanizeStatus}
+                />
               )}
 
               {/* Content Grid - 2 Columns */}
@@ -1462,7 +1699,8 @@ const TestRequestManagement = () => {
                       </div>
                     )}
                     {selectedRequest.details.updates.map((update) => {
-                      const normalized = normalizeStatus(update.status);
+                      const statusMeta = getStatusMeta(update.status);
+                      const statusCode = statusMeta.code;
                       return (
                         <div key={update.id} className="rounded-lg border border-gray-800/50 bg-gray-900/30 p-4 transition-all duration-300 hover:border-cyan-500/30">
                           <div className="flex items-center justify-between">
@@ -1470,9 +1708,9 @@ const TestRequestManagement = () => {
                             <span className="text-xs font-light text-gray-500">{formatDateTime(update.createdAt)}</span>
                           </div>
                           <div className="mt-2 text-sm font-light text-gray-300">{update.updateNote}</div>
-                          <span className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${getStatusColor(normalized.status)}`}>
-                            {getStatusIcon(normalized.status)}
-                            {humanizeStatus(update.status)}
+                          <span className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${getStatusColor(statusCode)}`}>
+                            {getStatusIcon(statusCode)}
+                            {formatStatusLabel(statusCode)}
                           </span>
                         </div>
                       );
@@ -1541,6 +1779,51 @@ const TestRequestManagement = () => {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-spin {
+          animation: spin 1s linear;
+        }
+
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(17, 24, 39, 0.3);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(6, 182, 212, 0.3);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(6, 182, 212, 0.5);
+        }
+      `}</style>
     </div>
   );
 };
