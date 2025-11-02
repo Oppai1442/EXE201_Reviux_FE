@@ -41,6 +41,7 @@ const DashboardLayout = () => {
       label: ROUTES.DASHBOARD.label,
       icon: BarChart3,
       submenu: null,
+      roles: ["ROLE_ADMIN"]
     },
     {
       id: ROUTES.DASHBOARD.child.USER_MANAGEMENT.path,
@@ -57,13 +58,14 @@ const DashboardLayout = () => {
         {
           id: ROUTES.DASHBOARD.child.MY_REQUESTS.path,
           label: ROUTES.DASHBOARD.child.MY_REQUESTS.label,
-          icon: ClipboardList
+          icon: ClipboardList,
+          roles: ["ROLE_USER", "ROLE_ADMIN", "ROLE_STAFF"],
         },
         {
           id: ROUTES.DASHBOARD.child.REQUEST_MANAGEMENT.path,
           label: ROUTES.DASHBOARD.child.REQUEST_MANAGEMENT.label,
           icon: Workflow,
-          roles: ["ROLE_ADMIN"]
+          roles: ["ROLE_ADMIN", "ROLE_STAFF"]
         }
       ]
     },
@@ -86,6 +88,7 @@ const DashboardLayout = () => {
       label: ROUTES.DASHBOARD.child.TRANSACTION.label,
       icon: CreditCard,
       submenu: null,
+      roles: ["ROLE_USER"]
     },
     {
       id: 'ticket',
@@ -96,12 +99,13 @@ const DashboardLayout = () => {
           id: ROUTES.DASHBOARD.child.TICKET_MANAGEMENT.path,
           label: ROUTES.DASHBOARD.child.TICKET_MANAGEMENT.label,
           icon: FileCog,
-          roles: ["ROLE_ADMIN"]
+          roles: ["ROLE_ADMIN", "ROLE_STAFF"]
         },
         {
           id: ROUTES.DASHBOARD.child.MY_TICKET.path,
           label: ROUTES.DASHBOARD.child.MY_TICKET.label,
-          icon: ClipboardList
+          icon: ClipboardList,
+          roles: ["ROLE_USER"]
         }
       ]
     },
@@ -110,12 +114,14 @@ const DashboardLayout = () => {
       label: ROUTES.DASHBOARD.child.MY_SUBSCRIPTIONS.label,
       icon: Receipt,
       submenu: null,
+      roles: ["ROLE_USER"]
     },
     {
       id: ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.path,
       label: ROUTES.DASHBOARD.child.NOTIFICATION_MANAGEMENT.label,
       icon: Bell,
       submenu: null,
+      roles: ["ROLE_USER", "ROLE_ADMIN", "ROLE_STAFF"]
     },
     {
       id: ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.path,

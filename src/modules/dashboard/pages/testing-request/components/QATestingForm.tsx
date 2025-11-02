@@ -210,6 +210,7 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="flex flex-col gap-8">
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -503,6 +504,51 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
         </button>
       </div>
     </form>
+          <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-spin {
+          animation: spin 1s linear;
+        }
+
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(17, 24, 39, 0.3);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(6, 182, 212, 0.3);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(6, 182, 212, 0.5);
+        }
+      `}</style>
+    </>
   );
 };
 

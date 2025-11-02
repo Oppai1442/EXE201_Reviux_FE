@@ -335,7 +335,7 @@ const NotificationPage = () => {
 
         <div
           ref={listRef}
-          className="space-y-4 max-h-[520px] overflow-y-auto pr-1"
+          className="space-y-4 max-h-[520px] overflow-y-auto pr-1 scrollbar-thin"
         >
           {loading ? (
             <div className="flex items-center justify-center h-64">

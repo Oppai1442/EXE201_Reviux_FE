@@ -20,6 +20,7 @@ import { toast } from 'react-hot-toast';
 
 import { useAuth } from '@/context/AuthContext';
 import AssignTesterForm from './components/AssignTesterForm';
+import { useNotifications } from '@/context/NotificationContext';
 import QuoteForm, { type QuoteFormState } from './components/QuoteForm';
 import StatusUpdateForm from './components/StatusUpdateForm';
 import TestLogForm from './components/TestLogForm';
@@ -295,6 +296,8 @@ const TestRequestManagement = () => {
   const [selectedRequest, setSelectedRequest] = useState<RequestTableItem | null>(null);
   const [activeForm, setActiveForm] = useState<'assign' | 'testLog' | 'bugReport' | 'status' | 'quote' | null>(null);
   const [testerOptions, setTesterOptions] = useState<AssignableTester[]>([]);
+  const { notifications } = useNotifications();
+  const lastSyncRef = useRef<number>(Date.now());
   const [assignForm, setAssignForm] = useState(() => ({ ...ASSIGN_FORM_INITIAL }));
   const [testLogForm, setTestLogForm] = useState(() => ({ ...TEST_LOG_FORM_INITIAL }));
   const [bugReportForm, setBugReportForm] = useState(() => ({ ...BUG_REPORT_FORM_INITIAL }));
@@ -833,6 +836,29 @@ const TestRequestManagement = () => {
     };
   }, []);
 
+  // Realtime refresh when relevant notifications arrive
+  useEffect(() => {
+    // Only refresh on relevant testing request events
+    const relevantTypes = new Set([
+      'TESTING_REQUEST',
+      'TESTING_UPDATE',
+      'TEST_LOG',
+      'BUG_REPORT',
+      'BUG_COMMENT',
+    ]);
+    const since = lastSyncRef.current;
+    const hasRelevant = notifications.some((n) => {
+      if (!n || !n.type) return false;
+      if (!relevantTypes.has(n.type)) return false;
+      const ts = new Date(n.createdAt).getTime();
+      return Number.isFinite(ts) && ts > since;
+    });
+    if (hasRelevant) {
+      void fetchRequests({ silent: true, suppressMessages: true });
+      lastSyncRef.current = Date.now();
+    }
+  }, [notifications]);
+
   useEffect(() => {
     if (!selectedRequest) {
       setActiveForm(null);
@@ -981,6 +1007,7 @@ const TestRequestManagement = () => {
 
   const handleViewDetails = (request: RequestTableItem) => {
     setSelectedRequest(request);
+    console.log(request.status)
   };
 
   const handleCloseDetails = () => {
@@ -1179,10 +1206,10 @@ const TestRequestManagement = () => {
         {/* Requests Table */}
         <div className="bg-gray-900/30 border border-gray-800/50 rounded-lg backdrop-blur-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-fixed">
               <thead className="bg-gray-800/50">
                 <tr>
-                  <th className="px-6 py-4 text-left">
+                  <th className="px-6 py-4 text-left whitespace-nowrap">
                     <button
                       onClick={() => handleSort('id')}
                       className="flex items-center gap-2 font-light text-gray-300 hover:text-cyan-400 transition-colors duration-300"
@@ -1191,7 +1218,7 @@ const TestRequestManagement = () => {
                       <ArrowUpDown className="w-4 h-4" />
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left">
+                  <th className="px-6 py-4 text-left whitespace-nowrap">
                     <button
                       onClick={() => handleSort('projectName')}
                       className="flex items-center gap-2 font-light text-gray-300 hover:text-cyan-400 transition-colors duration-300"
@@ -1200,7 +1227,7 @@ const TestRequestManagement = () => {
                       <ArrowUpDown className="w-4 h-4" />
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left">
+                  <th className="px-6 py-4 text-left whitespace-nowrap">
                     <button
                       onClick={() => handleSort('testType')}
                       className="flex items-center gap-2 font-light text-gray-300 hover:text-cyan-400 transition-colors duration-300"
@@ -1209,7 +1236,7 @@ const TestRequestManagement = () => {
                       <ArrowUpDown className="w-4 h-4" />
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left">
+                  <th className="px-6 py-4 text-left whitespace-nowrap">
                     <button
                       onClick={() => handleSort('status')}
                       className="flex items-center gap-2 font-light text-gray-300 hover:text-cyan-400 transition-colors duration-300"
@@ -1218,7 +1245,7 @@ const TestRequestManagement = () => {
                       <ArrowUpDown className="w-4 h-4" />
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left">
+                  <th className="px-6 py-4 text-left whitespace-nowrap">
                     <button
                       onClick={() => handleSort('priority')}
                       className="flex items-center gap-2 font-light text-gray-300 hover:text-cyan-400 transition-colors duration-300"
@@ -1227,7 +1254,7 @@ const TestRequestManagement = () => {
                       <ArrowUpDown className="w-4 h-4" />
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left">
+                  <th className="px-6 py-4 text-left whitespace-nowrap">
                     <button
                       onClick={() => handleSort('createdAt')}
                       className="flex items-center gap-2 font-light text-gray-300 hover:text-cyan-400 transition-colors duration-300"
@@ -1245,9 +1272,9 @@ const TestRequestManagement = () => {
                       <ArrowUpDown className="w-4 h-4" />
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left font-light text-gray-300">Progress</th>
-                  <th className="px-6 py-4 text-left font-light text-gray-300">Actions</th>
-                </tr>
+                  <th className="px-6 py-4 text-left font-light text-gray-300 whitespace-nowrap">Progress</th>
+                  <th className="px-6 py-4 text-left font-light text-gray-300 whitespace-nowrap">Actions</th>
+              </tr>
               </thead>
               <tbody>
                 {isLoading ? (
@@ -1271,36 +1298,36 @@ const TestRequestManagement = () => {
                         animationDelay: `${index * 100}ms`,
                       }}
                     >
-                      <td className="px-6 py-4">
-                        <span className="font-light text-cyan-400">{request.id}</span>
+                      <td className="px-6 py-4 align-top">
+                        <span className="font-light text-cyan-400 block truncate" title={request.id}>{request.id}</span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="font-light text-white">{request.projectName}</div>
-                          <div className="text-sm text-gray-400 mt-1">{request.assignedTester}</div>
+                      <td className="px-6 py-4 align-top">
+                        <div className="min-w-0">
+                          <div className="font-light text-white truncate" title={request.projectName}>{request.projectName}</div>
+                          <div className="text-sm text-gray-400 mt-1 truncate" title={request.assignedTester}>{request.assignedTester}</div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="capitalize font-light text-gray-300">{request.testType}</span>
+                      <td className="px-6 py-4 align-top">
+                        <span className="capitalize font-light text-gray-300 block truncate" title={request.testType}>{request.testType}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 align-top">
                         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${getStatusColor(request.status)}`}>
                           {getStatusIcon(request.status)}
                           {formatStatusLabel(request.status)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 align-top">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs border capitalize ${getPriorityColor(request.priority)}`}>
                           {request.priority}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="font-light text-gray-300">{formatDate(request.createdAt)}</span>
+                      <td className="px-6 py-4 align-top">
+                        <span className="font-light text-gray-300 block truncate" title={formatDate(request.createdAt)}>{formatDate(request.createdAt)}</span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="font-light text-gray-300">{formatDate(request.deadline)}</span>
+                      <td className="px-6 py-4 align-top">
+                        <span className="font-light text-gray-300 block truncate" title={formatDate(request.deadline)}>{formatDate(request.deadline)}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 align-top">
                         <div className="w-full bg-gray-800/50 rounded-full h-2">
                           <div
                             className="bg-gradient-to-r from-cyan-500 to-cyan-600 h-2 rounded-full transition-all duration-300"
@@ -1309,7 +1336,7 @@ const TestRequestManagement = () => {
                         </div>
                         <span className="text-xs text-gray-400 mt-1">{request.progress}%</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 align-top">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -1553,6 +1580,7 @@ const TestRequestManagement = () => {
                   type="button"
                   onClick={() => handleToggleForm('quote')}
                   disabled={!canSendQuote || selectedStatusIsTerminal}
+                  title={!canSendQuote || selectedStatusIsTerminal ? 'Need to set status to Pending' : undefined}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'quote'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
@@ -1588,11 +1616,12 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('testLog')}
-                  disabled={selectedStatusIsTerminal}
+                  disabled={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS'}
+                  title={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS' ? 'Available when status is IN_PROGRESS' : undefined}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'testLog'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    } ${selectedStatusIsTerminal ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
+                    } ${(selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS') ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Add Test Log
                 </button>
@@ -1600,11 +1629,12 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('bugReport')}
-                  disabled={selectedStatusIsTerminal}
+                  disabled={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS'}
+                  title={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS' ? 'Available when status is IN_PROGRESS' : undefined}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'bugReport'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
-                    } ${selectedStatusIsTerminal ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
+                    } ${(selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS') ? 'opacity-60 cursor-not-allowed hover:border-gray-800/60 hover:text-gray-300' : ''}`}
                 >
                   Add Bug Report
                 </button>

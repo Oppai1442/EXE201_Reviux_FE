@@ -29,6 +29,7 @@ import { Loading } from "@/components/Loading";
 import QATestingForm from "./components/QATestingForm";
 import { ticketService } from "@/services/ticket/ticketService";
 import { ROUTES } from "@/constant/routes";
+import { useNotifications } from "@/context/NotificationContext";
 import {
   getBugReportsAPI,
   getTestingRequestDetailsAPI,
@@ -1153,6 +1154,7 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
 const MyRequestsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, showAuthModal } = useAuth();
+  const { notifications } = useNotifications();
   const isStaff = Array.isArray((user as unknown as { roles?: Array<{ name?: string }> })?.roles)
     && ((user as unknown as { roles?: Array<{ name?: string }> }).roles?.some((role) => role?.name === 'STAFF'));
   const [requests, setRequests] = useState<RequestItem[]>([]);
@@ -1558,6 +1560,28 @@ const ownerId = user?.id ?? null;
     setCurrentPage(1);
   }, [searchTerm, filters, sortField, sortDirection]);
 
+  // Realtime refresh on notifications affecting my requests (list + open drawer)
+  useEffect(() => {
+    const relevantTypes = new Set([
+      'TESTING_REQUEST',
+      'TESTING_UPDATE',
+      'TEST_LOG',
+      'BUG_REPORT',
+      'BUG_COMMENT',
+    ]);
+    const hasRelevant = notifications.some((n) => relevantTypes.has(n.type));
+    if (!hasRelevant) return;
+
+    // If a request drawer is open, refresh that specific item and keep it selected
+    if (selectedRequest) {
+      void refreshRequestsAndSelect(selectedRequest.id);
+    } else {
+      // Otherwise refresh the whole list quietly
+      void fetchRequests('refresh');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifications]);
+
   const productTypes = useMemo(() => {
     const values = new Set<string>();
     requests.forEach((request) => {
@@ -1733,6 +1757,7 @@ const ownerId = user?.id ?? null;
   }
 
   return (
+    <>
     <div className="relative min-h-screen overflow-hidden bg-gray-950 text-white">
       <div
         className="pointer-events-none fixed inset-0 opacity-20"
@@ -1912,6 +1937,51 @@ const ownerId = user?.id ?? null;
         confirmingCompletion={confirmingCompletion}
       />
     </div>
+          <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-spin {
+          animation: spin 1s linear;
+        }
+
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(17, 24, 39, 0.3);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(6, 182, 212, 0.3);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(6, 182, 212, 0.5);
+        }
+      `}</style>
+    </>
   );
 };
 
