@@ -293,7 +293,6 @@ const CheckoutPage = () => {
       const response = await initiatePaymentAPI({
         checkoutId: id,
         paymentMethod: selectedPaymentMethod,
-        customerInfo,
       });
 
       if (isAccountBalance) {
