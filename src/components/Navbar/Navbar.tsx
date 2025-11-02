@@ -82,24 +82,32 @@ const Navbar = () => {
   };
 
   const menuItems = [
-    {
-      icon: User,
-      label: "Dashboard",
-      onClick: () => handleItemClick(),
-      href: "/dashboard"
-    },
+    // Primary entry depends on role
+    user?.role?.name === "ROLE_ADMIN"
+      ? {
+          icon: User,
+          label: "Dashboard",
+          onClick: () => handleItemClick(),
+          href: ROUTES.DASHBOARD.getPath(),
+        }
+      : {
+          icon: User,
+          label: "My Requests",
+          onClick: () => handleItemClick(),
+          href: ROUTES.DASHBOARD.child.MY_REQUESTS.getPath(),
+        },
     {
       icon: Settings,
       label: "Settings",
       onClick: () => handleItemClick(),
-      href: "/user/setting"
+      href: ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.getPath(),
     },
     {
       icon: LogOut,
       label: "Logout",
       onClick: () => handleItemClick("logout"),
-      isButton: true
-    }
+      isButton: true,
+    },
   ];
 
   return (
