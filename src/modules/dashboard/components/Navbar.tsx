@@ -279,14 +279,14 @@ const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
                 >
                   <div className="p-2">
                     <a 
-                      href={ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.path}
+                      href={ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.getPath()}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-white font-light hover:bg-gray-800/50 rounded-xl transition-all duration-300 group"
                     >
                       <User className="h-4 w-4 text-gray-400 group-hover:text-cyan-400 transition-colors duration-300" />
                       <span className="group-hover:text-cyan-400 transition-colors duration-300">Profile</span>
                     </a>
                     <a 
-                      href={ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.path}
+                      href={ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.getPath()}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-white font-light hover:bg-gray-800/50 rounded-xl transition-all duration-300 group"
                     >
                       <Settings className="h-4 w-4 text-gray-400 group-hover:text-cyan-400 transition-colors duration-300" />
