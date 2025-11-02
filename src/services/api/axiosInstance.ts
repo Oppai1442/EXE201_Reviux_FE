@@ -1,27 +1,24 @@
 import axios from "axios";
 
-const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  timeout: 5000,
-  // headers: {
-  //   "Content-Type": "application/json",
-  // },
-});
+const DEFAULT_TIMEOUT = 10000;
 
+const axiosInstance = axios.create({
+  baseURL: import.meta.env.VITE_API_URL?.trim() || "/api",
+  timeout: DEFAULT_TIMEOUT,
+});
 
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("accountToken");
-    if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+
+    if (token && config.headers && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Tự động detect FormData và set headers phù hợp
     if (config.data instanceof FormData) {
-      // Không set Content-Type để browser tự động set với boundary
-      config.timeout = 30000; // Timeout lâu hơn cho file upload
-    } else {
-      config.headers["Content-Type"] = "application/json";
+      config.timeout = Math.max(DEFAULT_TIMEOUT, 30000);
+    } else if (config.headers) {
+      config.headers["Content-Type"] = config.headers["Content-Type"] ?? "application/json";
     }
 
     return config;
@@ -30,17 +27,20 @@ axiosInstance.interceptors.request.use(
 );
 
 axiosInstance.interceptors.response.use(
-  (response) => {
-    if (response?.data) return response.data;
-    return response;
-  },
+  (response) => response.data,
   (error) => {
+    const status = error?.response?.status;
+    if (status === 401) {
+      try {
+        localStorage.removeItem("accountToken");
+        window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+      } catch (storageError) {
+        console.warn("Failed to clear auth token", storageError);
+      }
+    }
+
     return Promise.reject(error);
   }
-
 );
-
-
-// Helper function cho file uploads
 
 export default axiosInstance;
