@@ -16,13 +16,20 @@ import {
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loading } from "@/components/Loading";
 import { toast } from "react-hot-toast";
-import { checkoutStripeConfirm, checkoutVnpayConfirm, getCheckoutDetailAPI, getWalletBalanceAPI, initiatePaymentAPI } from "../services/checkout";
+import {
+  checkoutStripeConfirm,
+  checkoutVnpayConfirm,
+  getCheckoutDetailAPI,
+  getCheckoutMethodsAPI,
+  getWalletBalanceAPI,
+  initiatePaymentAPI,
+} from "../services/checkout";
 import {
   SubscriptionSummary,
   TopUpComponent,
 } from "../components";
 import { ROUTES } from "@/constant/routes";
-import type { checkoutDetail, TopUpPlan } from "../types";
+import type { checkoutDetail, TopUpPlan, checkoutPaymentMethodStatus } from "../types";
 import CheckoutHandler from "../components/CheckoutHandler";
 
 interface CustomerInfo {
@@ -34,7 +41,7 @@ interface CustomerInfo {
 
 type CustomerInfoField = keyof CustomerInfo;
 
-type PaymentMethodId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "PAYPAL" | "MOMO" | "CREDIT";
+type PaymentMethodId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "MOMO";
 
 interface PaymentMethodOption {
   id: PaymentMethodId;
@@ -42,6 +49,7 @@ interface PaymentMethodOption {
   image: string;
   description: string;
   available: boolean;
+  statusLabel?: string;
 }
 
 const BASE_PAYMENT_METHODS: PaymentMethodOption[] = [
@@ -94,6 +102,7 @@ const CheckoutPage = () => {
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [isWalletLoading, setIsWalletLoading] = useState(false)
   const [walletError, setWalletError] = useState<string | null>(null)
+  const [backendPaymentMethods, setBackendPaymentMethods] = useState<checkoutPaymentMethodStatus[]>([])
 
   const fetchCheckoutDetail = useCallback(async () => {
     const response = await getCheckoutDetailAPI(id ?? "");
@@ -133,8 +142,28 @@ const CheckoutPage = () => {
     return Number.isFinite(numericFinalPrice) ? numericFinalPrice : 0;
   }, [checkoutDetail, topupDetail]);
 
+  const backendMethodLookup = useMemo(() => {
+    const map = new Map<string, checkoutPaymentMethodStatus>();
+    backendPaymentMethods.forEach((method) => {
+      if (method?.paymentMethod) {
+        map.set(method.paymentMethod, method);
+      }
+    });
+    return map;
+  }, [backendPaymentMethods]);
+
   const paymentMethods = useMemo<PaymentMethodOption[]>(() => {
-    const baseMethods = BASE_PAYMENT_METHODS.map((method) => ({ ...method }));
+    const baseMethods = BASE_PAYMENT_METHODS.map((method) => {
+      const backendInfo = backendMethodLookup.get(method.id);
+      const available = backendInfo?.available ?? method.available;
+      return {
+        ...method,
+        name: backendInfo?.displayName ?? method.name,
+        available,
+        statusLabel: available ? undefined : backendInfo?.statusMessage,
+      };
+    });
+
     const walletAvailable =
       checkoutDetail.checkoutType === "SUBSCRIPTION" &&
       walletBalance !== null &&
@@ -153,16 +182,24 @@ const CheckoutPage = () => {
       return `Insufficient balance. Requires ${amountDue.toLocaleString()} credits.`;
     })();
 
+    const walletBackendInfo = backendMethodLookup.get("ACCOUNT_BALANCE");
+    const backendWalletAvailable = walletBackendInfo?.available ?? true;
+    const walletStatusLabel =
+      walletAvailable && backendWalletAvailable
+        ? undefined
+        : walletBackendInfo?.statusMessage ?? walletDescription;
+
     const walletOption: PaymentMethodOption = {
       id: "ACCOUNT_BALANCE",
-      name: "Account Balance",
+      name: walletBackendInfo?.displayName ?? "Account Balance",
       image: "",
       description: walletDescription,
-      available: walletAvailable,
+      available: walletAvailable && backendWalletAvailable,
+      statusLabel: walletStatusLabel,
     };
 
     return [walletOption, ...baseMethods];
-  }, [amountDue, checkoutDetail.checkoutType, walletBalance]);
+  }, [amountDue, backendMethodLookup, checkoutDetail.checkoutType, walletBalance]);
 
   useEffect(() => {
     const current = paymentMethods.find((method) => method.id === selectedPaymentMethod);
@@ -250,6 +287,19 @@ const CheckoutPage = () => {
   useEffect(() => {
     void fetchWalletBalance();
   }, [fetchWalletBalance]);
+
+  useEffect(() => {
+    const fetchMethods = async () => {
+      try {
+        const methods = await getCheckoutMethodsAPI();
+        setBackendPaymentMethods(methods ?? []);
+      } catch (err) {
+        console.error("Failed to load payment methods:", err);
+      }
+    };
+
+    void fetchMethods();
+  }, []);
 
   const handleInputChange = (field: CustomerInfoField, value: string) => {
     setCustomerInfo((prev: CustomerInfo) => ({ ...prev, [field]: value }));
@@ -534,7 +584,7 @@ const CheckoutPage = () => {
                           {method.name}
                           {!method.available && (
                             <span className="text-xs bg-gray-700/50 text-gray-400 px-2 py-0.5 rounded-full font-light">
-                              {method.id === "ACCOUNT_BALANCE" ? "Insufficient" : "Soon"}
+                              {method.statusLabel ?? (method.id === "ACCOUNT_BALANCE" ? "Insufficient" : "Soon")}
                             </span>
                           )}
                         </div>

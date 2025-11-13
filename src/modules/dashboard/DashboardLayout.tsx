@@ -88,7 +88,6 @@ const DashboardLayout = () => {
       label: ROUTES.DASHBOARD.child.TRANSACTION.label,
       icon: CreditCard,
       submenu: null,
-      roles: ["ROLE_USER"]
     },
     {
       id: 'ticket',

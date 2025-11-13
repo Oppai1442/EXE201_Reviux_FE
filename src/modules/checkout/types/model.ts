@@ -27,6 +27,18 @@ export interface TopUpPlan {
     popular?: boolean;
 }
 
+export type PaymentMethodBackendId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "MOMO" | "CREDIT_CARD";
+
+export type PaymentMethodAvailabilityStatus = "AVAILABLE" | "COMING_SOON" | "DISABLED";
+
+export interface checkoutPaymentMethodStatus {
+    paymentMethod: PaymentMethodBackendId;
+    available: boolean;
+    status: PaymentMethodAvailabilityStatus;
+    statusMessage?: string;
+    displayName?: string;
+}
+
 export interface checkoutConfirmRedirectResponse {
     checkoutId: string,
     success: boolean,

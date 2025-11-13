@@ -1,6 +1,6 @@
 import { getData, postData } from "@/services/api/apiService"
 import { buildQuery } from "@/utils"
-import type { checkoutConfirmRedirectResponse, checkoutDetail } from "../types"
+import type { checkoutConfirmRedirectResponse, checkoutDetail, checkoutPaymentMethodStatus } from "../types"
 
 export const getCheckoutDetailAPI = async(checkoutId: string | "") => {
     const query = buildQuery({checkoutId})
@@ -25,5 +25,10 @@ export const checkoutStripeConfirm = async(req: { checkoutId: string; sessionId:
 
 export const getWalletBalanceAPI = async () => {
     const response = await getData<number>('/wallet/balance')
+    return response.data
+}
+
+export const getCheckoutMethodsAPI = async () => {
+    const response = await getData<checkoutPaymentMethodStatus[]>('/checkout/methods')
     return response.data
 }
