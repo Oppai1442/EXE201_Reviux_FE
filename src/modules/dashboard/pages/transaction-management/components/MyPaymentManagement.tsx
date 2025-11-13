@@ -49,30 +49,27 @@ const MyPaymentManagement = () => {
         });
     };
 
-    useEffect(() => {
-        const updateTransactionHistory = async () => {
-            try {
-                const response = await getMyTransactionHistroyAPI(currentPage - 1, itemsPerPage, searchTerm, selectedStatus);
-                setTransactions(response?.content ?? []);
-                setTotalResult(response?.totalElements ?? 0);
-            } catch (error) {
-                console.error('Failed to fetch transaction history', error);
-            }
-        };
-
-        updateTransactionHistory();
+    const fetchTransactionHistory = useCallback(async () => {
+        try {
+            const response = await getMyTransactionHistroyAPI(currentPage - 1, itemsPerPage, searchTerm, selectedStatus);
+            setTransactions(response?.content ?? []);
+            setTotalResult(response?.totalElements ?? 0);
+        } catch (error) {
+            console.error('Failed to fetch transaction history', error);
+        }
     }, [currentPage, itemsPerPage, searchTerm, selectedStatus]);
+
+    useEffect(() => {
+        fetchTransactionHistory();
+    }, [fetchTransactionHistory]);
 
     const fetchInitData = useCallback(async () => {
         try {
-            const [historyResponse, transactionSummary, balance] = await Promise.all([
-                getMyTransactionHistroyAPI(0, itemsPerPage),
+            const [transactionSummary, balance] = await Promise.all([
                 getMyTransactionSummaryAPI(),
                 getWalletBalanceAPI(),
             ]);
 
-            setTransactions(historyResponse?.content ?? []);
-            setTotalResult(historyResponse?.totalElements ?? 0);
             setSummary((transactionSummary as { failedCount: number; pendingCount: number; successCount: number; totalAmount: number }) ?? {
                 failedCount: 0,
                 pendingCount: 0,
@@ -84,7 +81,7 @@ const MyPaymentManagement = () => {
             console.error('Failed to fetch initial transaction data', error);
             setWalletBalance(null);
         }
-    }, [itemsPerPage]);
+    }, []);
 
     useEffect(() => {
         fetchInitData();
@@ -151,18 +148,23 @@ const MyPaymentManagement = () => {
         const statusConfig = {
             COMPLETED: 'bg-cyan-400/10 text-cyan-400 border-cyan-400/30',
             ACTIVE: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/30',
-            FAILED: 'bg-red-400/10 text-red-400 border-red-400/30'
+            FAILED: 'bg-red-400/10 text-red-400 border-red-400/30',
+            EXPIRED: 'bg-gray-500/10 text-gray-300 border-gray-500/30'
         };
 
         const statusText = {
             COMPLETED: 'Success',
             ACTIVE: 'Pending',
-            FAILED: 'Failed'
+            FAILED: 'Failed',
+            EXPIRED: 'Expired'
         };
 
+        const badgeClass = statusConfig[status] ?? 'bg-gray-700/10 text-gray-300 border-gray-700/30';
+        const label = statusText[status] ?? status ?? 'Unknown';
+
         return (
-            <span className={`px-3 py-1.5 rounded-lg text-xs font-light border ${statusConfig[status]}`}>
-                {statusText[status]}
+            <span className={`px-3 py-1.5 rounded-lg text-xs font-light border ${badgeClass}`}>
+                {label}
             </span>
         );
     };
@@ -183,6 +185,15 @@ const MyPaymentManagement = () => {
             style: 'currency',
             currency: 'USD'
         }).format(amount);
+    };
+
+    const handleRefreshTransactions = useCallback(async () => {
+        await fetchTransactionHistory();
+    }, [fetchTransactionHistory]);
+
+    const handleOpenCheckout = (checkoutId?: string) => {
+        if (!checkoutId) return;
+        navigate(ROUTES.CHECKOUT.getPath(checkoutId));
     };
 
     return (
@@ -339,11 +350,17 @@ const MyPaymentManagement = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                                                 <div className="flex items-center gap-2">
                                                     {transaction.checkoutId && (
-                                                        <button className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 rounded-lg border border-transparent hover:border-cyan-400/30 transition-all duration-300">
+                                                        <button
+                                                            onClick={() => handleOpenCheckout(transaction.checkoutId)}
+                                                            className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 rounded-lg border border-transparent hover:border-cyan-400/30 transition-all duration-300"
+                                                        >
                                                             <Eye className="h-4 w-4" />
                                                         </button>
                                                     )}
-                                                    <button className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 rounded-lg border border-transparent hover:border-cyan-400/30 transition-all duration-300">
+                                                    <button
+                                                        onClick={handleRefreshTransactions}
+                                                        className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 rounded-lg border border-transparent hover:border-cyan-400/30 transition-all duration-300"
+                                                    >
                                                         <RefreshCw className="h-4 w-4" />
                                                     </button>
                                                 </div>
