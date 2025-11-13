@@ -13,7 +13,11 @@ export const initiatePaymentAPI = async(req: any) => {
     return response.data
 }
 
-export const checkoutVnpayConfirm = async(req: any) => {
+export const checkoutRedirectConfirm = async(req: {
+    checkoutId: string;
+    provider: string;
+    params: Record<string, string>;
+}) => {
     const response = await postData<checkoutConfirmRedirectResponse>('/checkout/confirm-redirect', req)
     return response
 }

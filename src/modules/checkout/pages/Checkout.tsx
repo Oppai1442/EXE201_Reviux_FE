@@ -18,7 +18,7 @@ import { Loading } from "@/components/Loading";
 import { toast } from "react-hot-toast";
 import {
   checkoutStripeConfirm,
-  checkoutVnpayConfirm,
+  checkoutRedirectConfirm,
   getCheckoutDetailAPI,
   getCheckoutMethodsAPI,
   getWalletBalanceAPI,
@@ -41,7 +41,7 @@ interface CustomerInfo {
 
 type CustomerInfoField = keyof CustomerInfo;
 
-type PaymentMethodId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "MOMO";
+type PaymentMethodId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "MOMO" | "PAYOS";
 
 interface PaymentMethodOption {
   id: PaymentMethodId;
@@ -72,6 +72,13 @@ const BASE_PAYMENT_METHODS: PaymentMethodOption[] = [
     name: "MoMo Wallet",
     image: "https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png",
     description: "MoMo e-wallet in Vietnam (coming soon)",
+    available: false,
+  },
+  {
+    id: "PAYOS",
+    name: "PayOS",
+    image: "",
+    description: "Pay via PayOS network (coming soon)",
     available: false,
   },
 ];
@@ -232,6 +239,7 @@ const CheckoutPage = () => {
       const statusParam = params.get("status")?.toLowerCase();
       const stripeSessionId = params.get("session_id");
       const vnpParams: Record<string, string> = {};
+      const payosParams: Record<string, string> = {};
 
       if (stripeSessionId && (providerParam === "" || providerParam === "stripe")) {
         try {
@@ -255,14 +263,32 @@ const CheckoutPage = () => {
       }
 
       for (const [key, value] of params.entries()) {
+        if (key === "provider") {
+          continue;
+        }
+        if (providerParam === "payos") {
+          payosParams[key] = value;
+        }
         if (key.startsWith("vnp_")) {
           vnpParams[key] = value;
         }
       }
 
-      if (Object.keys(vnpParams).length > 0) {
+      if (providerParam === "payos" && Object.keys(payosParams).length > 0) {
         try {
-          await checkoutVnpayConfirm({ checkoutId: id, vnpParams });
+          setIsProcessing(true);
+          await checkoutRedirectConfirm({ checkoutId: id, provider: "payos", params: payosParams });
+          toast.success("PayOS payment confirmed successfully.");
+        } catch (error) {
+          console.error("Failed to confirm PayOS payment:", error);
+          toast.error("Failed to confirm PayOS payment.");
+        } finally {
+          setIsProcessing(false);
+          window.history.replaceState(null, "", basePath);
+        }
+      } else if (Object.keys(vnpParams).length > 0) {
+        try {
+          await checkoutRedirectConfirm({ checkoutId: id, provider: "vnpay", params: vnpParams });
           toast.success("VNPay payment confirmed successfully.");
         } catch (error) {
           console.error("Failed to confirm VNPay payment:", error);

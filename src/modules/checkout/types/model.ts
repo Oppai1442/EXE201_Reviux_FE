@@ -27,7 +27,7 @@ export interface TopUpPlan {
     popular?: boolean;
 }
 
-export type PaymentMethodBackendId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "MOMO" | "CREDIT_CARD";
+export type PaymentMethodBackendId = "ACCOUNT_BALANCE" | "VNPAY" | "STRIPE" | "MOMO" | "PAYOS" | "CREDIT_CARD";
 
 export type PaymentMethodAvailabilityStatus = "AVAILABLE" | "COMING_SOON" | "DISABLED";
 

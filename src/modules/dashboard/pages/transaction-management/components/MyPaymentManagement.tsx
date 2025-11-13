@@ -81,7 +81,7 @@ const MyPaymentManagement = () => {
             });
             setWalletBalance(typeof balance === "number" ? balance : null);
         } catch (error) {
-            console.error('Failed to fetch initial payment data', error);
+            console.error('Failed to fetch initial transaction data', error);
             setWalletBalance(null);
         }
     }, [itemsPerPage]);
@@ -214,10 +214,10 @@ const MyPaymentManagement = () => {
                 >
                     <div>
                         <h1 className="text-5xl md:text-6xl font-light mb-3">
-                            <span className="text-white">Payment </span>
+                            <span className="text-white">Transaction </span>
                             <span className="bg-gradient-to-r from-cyan-400 to-cyan-600 bg-clip-text text-transparent">Management</span>
                         </h1>
-                        <p className="text-gray-400 font-light text-lg">Track and manage your payment transactions</p>
+                        <p className="text-gray-400 font-light text-lg">Track and manage your transaction history</p>
                     </div>
                     <div className="flex items-center gap-3">
                         <button className="group px-6 py-3 bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-xl text-white font-light hover:border-cyan-400/50 hover:text-cyan-400 transition-all duration-300 flex items-center gap-2">
