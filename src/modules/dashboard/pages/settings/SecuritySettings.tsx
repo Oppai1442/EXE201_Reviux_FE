@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, Key, Smartphone, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
+import showToast from '@/utils/toast';
+import { fetchTwoFactorStatus, requireTwoFactorAuth, updateTwoFactorStatus } from '@/modules/auth/services/twoFactorService';
 
 interface SecuritySettingsState {
     twoFactorEnabled: boolean;
@@ -20,12 +22,53 @@ const SecuritySettings: React.FC = () => {
         loginAlerts: true,
         suspiciousActivityAlerts: true
     });
+    const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+    const [twoFactorStatusLoaded, setTwoFactorStatusLoaded] = useState(false);
 
     type SecuritySettingKey = keyof SecuritySettingsState;
 
     const handleSecurityToggle = (setting: SecuritySettingKey): void => {
         setSecuritySettings(prev => ({ ...prev, [setting]: !prev[setting] }));
     };
+
+    const { twoFactorEnabled } = securitySettings;
+
+    useEffect(() => {
+        let mounted = true;
+        const loadStatus = async () => {
+            try {
+                const enabled = await fetchTwoFactorStatus();
+                if (mounted) {
+                    setSecuritySettings(prev => ({ ...prev, twoFactorEnabled: enabled }));
+                }
+            } catch (error) {
+                showToast('error', 'Unable to load two-factor status.');
+            } finally {
+                if (mounted) {
+                    setTwoFactorStatusLoaded(true);
+                }
+            }
+        };
+        loadStatus();
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const handleTwoFactorToggle = useCallback(async () => {
+        setTwoFactorLoading(true);
+        try {
+            const verificationCode = await requireTwoFactorAuth();
+            const nextState = !twoFactorEnabled;
+            await updateTwoFactorStatus(nextState, verificationCode);
+            setSecuritySettings(prev => ({ ...prev, twoFactorEnabled: nextState }));
+            showToast('success', nextState ? 'Two-factor authentication enabled.' : 'Two-factor authentication disabled.');
+        } catch (error) {
+            showToast('error', error?.message ?? 'Failed to update two-factor authentication.');
+        } finally {
+            setTwoFactorLoading(false);
+        }
+    }, [twoFactorEnabled]);
 
     return (
         <div className="space-y-8">
@@ -102,24 +145,34 @@ const SecuritySettings: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-400">
+                                {twoFactorStatusLoaded
+                                    ? securitySettings.twoFactorEnabled
+                                        ? 'Two-factor authentication is active'
+                                        : 'Two-factor authentication is disabled'
+                                    : 'Loading status...'}
+                            </span>
                             {securitySettings.twoFactorEnabled && (
                                 <span className="px-3 py-1.5 bg-green-500/20 text-green-300 border border-green-500/30 rounded-lg text-xs font-medium flex items-center gap-2">
                                     <CheckCircle className="w-3 h-3" />
                                     Enabled
                                 </span>
                             )}
-                            <button
-                                onClick={() => handleSecurityToggle('twoFactorEnabled')}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${securitySettings.twoFactorEnabled ? 'bg-red-600' : 'bg-gray-600'
-                                    }`}
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${securitySettings.twoFactorEnabled ? 'translate-x-6' : 'translate-x-1'
-                                        }`}
-                                />
-                            </button>
                         </div>
+                        <button
+                            onClick={handleTwoFactorToggle}
+                            disabled={twoFactorLoading || !twoFactorStatusLoaded}
+                            className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-semibold hover:from-cyan-400 hover:to-cyan-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {twoFactorLoading
+                                ? 'Updating...'
+                                : securitySettings.twoFactorEnabled
+                                    ? 'Disable 2FA'
+                                    : 'Enable 2FA'}
+                        </button>
                     </div>
+                </div>
 
                     <div className="flex items-center justify-between p-4 bg-gray-800/30 border border-gray-700 rounded-xl">
                         <div className="flex items-center gap-3">
@@ -199,10 +252,14 @@ const SecuritySettings: React.FC = () => {
                                     }`}
                             />
                         </button>
+                        </div>
                     </div>
+
+                    <p className="text-xs text-gray-500">
+                        When enabling or disabling 2FA you will be asked to provide the verification code from your authenticator app.
+                    </p>
                 </div>
             </div>
-        </div>
     );
 }
 
