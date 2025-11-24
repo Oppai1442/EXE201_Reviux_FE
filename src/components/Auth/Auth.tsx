@@ -9,13 +9,18 @@ import { Assets } from "@/assets";
 import { Trans, useTranslation } from "react-i18next";
 import { validateEmail } from "@/utils/validators";
 import { handleAuthError } from "@/utils/errorHandler";
-import { signIn, signUp } from "./service/authService";
+import { signIn, signUp, signInWithGoogle } from "./service/authService";
 import { X, Eye, EyeOff } from "lucide-react";
 
 interface AuthProps {
   mode: "signIn" | "signUp" | null;
   onClose: () => void;
 }
+
+type GoogleCredentialResponse = {
+  credential?: string;
+  select_by?: string;
+};
 
 const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
   const popupRef = useRef<HTMLDivElement | null>(null);
@@ -29,6 +34,8 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
   const [mode, setMode] = useState<"signIn" | "signUp">(initialMode || "signIn");
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
   const [isLoading, setIsHandling] = useState<boolean>(false);
+  const [isGoogleReady, setIsGoogleReady] = useState<boolean>(false);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || "";
 
   const [email, setEmail] = useState<string>("");
   const [emailError, setEmailError] = useState<string>("");
@@ -58,6 +65,84 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
 
   const handleSwitchMode = () => {
     setMode((prevMode) => (prevMode === "signIn" ? "signUp" : "signIn"));
+  };
+
+  const requestGoogleCredential = useCallback(() => {
+    return new Promise<string>((resolve, reject) => {
+      const google = (window as any).google;
+
+      if (!google?.accounts?.id) {
+        reject(new Error("Google Sign-In is not ready yet. Please try again."));
+        return;
+      }
+
+      if (!googleClientId) {
+        reject(new Error("Google Client ID is missing."));
+        return;
+      }
+
+      let settled = false;
+
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response: GoogleCredentialResponse) => {
+          if (settled) return;
+          settled = true;
+
+          if (response?.credential) {
+            resolve(response.credential);
+          } else {
+            reject(new Error("Google did not return a credential."));
+          }
+        },
+        ux_mode: "popup",
+      });
+
+      google.accounts.id.prompt((notification: any) => {
+        if (settled) return;
+
+        if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.() || notification?.isDismissedMoment?.()) {
+          settled = true;
+          reject(new Error("Google sign-in was cancelled."));
+        }
+      });
+    });
+  }, [googleClientId]);
+
+  const handleGoogleAuth = async () => {
+    if (!isGoogleReady) {
+      showToast("error", "Google Sign-In is still loading. Please try again.");
+      return;
+    }
+    if (isLoading) {
+      return;
+    }
+    if (!googleClientId) {
+      showToast("error", "Google Client ID is missing.");
+      return;
+    }
+
+    setIsHandling(true);
+    try {
+      const credential = await requestGoogleCredential();
+      const response = await signInWithGoogle(credential);
+
+      if (response) {
+        const { token, user } = response;
+        authenticate(token, user);
+
+        onClose();
+        showToast("success", isSignIn() ? "Signed in with Google!" : "Account created with Google!");
+      }
+    } catch (error: any) {
+      if (error?.response) {
+        handleAuthError(error);
+      } else {
+        showToast("error", error?.message || "Google sign-in failed. Please try again.");
+      }
+    } finally {
+      setIsHandling(false);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -141,6 +226,34 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
   useEffect(() => {
     setMode(initialMode || "signIn");
   }, [initialMode]);
+
+  useEffect(() => {
+    const scriptId = "google-identity-service";
+    const existingScript = document.getElementById(scriptId);
+
+    if (existingScript) {
+      setIsGoogleReady(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setIsGoogleReady(true);
+    script.onerror = () => {
+      setIsGoogleReady(false);
+      showToast("error", "Unable to load Google Sign-In. Please try again.");
+    };
+
+    document.body.appendChild(script);
+
+    return () => {
+      script.onload = null;
+      script.onerror = null;
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-gray-950/95 backdrop-blur-sm z-[1000] flex justify-center items-center p-4">
@@ -286,8 +399,10 @@ const Auth: React.FC<AuthProps> = ({ mode: initialMode, onClose }) => {
               </button>
               <button
                 type="button"
-                className="p-4 rounded-xl bg-gray-800/30 border border-gray-700/50 hover:border-cyan-400/50 hover:bg-gray-800/50 transition-all duration-300 group"
+                className="p-4 rounded-xl bg-gray-800/30 border border-gray-700/50 hover:border-cyan-400/50 hover:bg-gray-800/50 transition-all duration-300 group disabled:opacity-60 disabled:cursor-not-allowed"
                 aria-label="Sign in with Google"
+                onClick={handleGoogleAuth}
+                disabled={isLoading}
               >
                 <svg className="w-6 h-6 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

@@ -2,7 +2,8 @@ import { Navigate } from 'react-router-dom';
 import { lazy, Suspense, type ReactNode } from 'react';
 import { ROUTES } from '@/constant/routes';
 import { CheckoutPage } from '@/modules/checkout';
-import { Log, MyRequest, MySubscription, MyTicket, NotificationManagement, RequestManagement, TicketManagement, TransactionManagement } from '@/modules/dashboard';
+import { CouponManagement, Log, MyRequest, MySubscription, MyTicket, NotificationManagement, RequestManagement, TicketManagement, TransactionManagement } from '@/modules/dashboard';
+import { UsersPaymentManagement } from '@/modules/dashboard/pages/transaction-management/components';
 
 // Lazy load components
 const Home = lazy(() => import('@/modules/home'));
@@ -65,7 +66,8 @@ const routes: AppRoute[] = [
       { path: ROUTES.DASHBOARD.child.USER_MANAGEMENT.path, element: <UserManagement />},
       { path: ROUTES.DASHBOARD.child.PERMISSION_MANAGEMENT.path, element: <PermissionManagement /> },
       { path: ROUTES.DASHBOARD.child.SUBSCRIPTIONS.path, element: <SubscriptionManagement /> },
-      { path: ROUTES.DASHBOARD.child.TRANSACTION.path, element: <TransactionManagement /> },
+      { path: ROUTES.DASHBOARD.child.MY_TRANSACTION.path, element: <TransactionManagement /> },
+      { path: ROUTES.DASHBOARD.child.TRANSACTION.path, element: <UsersPaymentManagement /> },
 
       { path: ROUTES.DASHBOARD.child.REQUEST_MANAGEMENT.path, element: <RequestManagement />},
       { path: ROUTES.DASHBOARD.child.MY_REQUESTS.path, element: <MyRequest />},
@@ -76,6 +78,7 @@ const routes: AppRoute[] = [
 
       { path: ROUTES.DASHBOARD.child.TICKET_MANAGEMENT.path, element: <TicketManagement />},
       { path: ROUTES.DASHBOARD.child.MY_TICKET.path, element: <MyTicket />},
+      { path: ROUTES.DASHBOARD.child.COUPONS.path, element: <CouponManagement />},
       
       //Settings
       { path: ROUTES.DASHBOARD.child.ACCOUNT_SETTINGS.path, element: <AccountSettings /> },

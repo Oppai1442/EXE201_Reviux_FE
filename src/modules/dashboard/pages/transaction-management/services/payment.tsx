@@ -16,3 +16,17 @@ export const getMyTransactionHistroyAPI = async(page: number = 0, size: number =
     const response = await getData(`/transaction/me?${query}`)
     return response.data
 }
+
+export const getAdminTransactionSummaryAPI = async(filters: Record<string, unknown> = {}) => {
+    const query = buildQuery(filters)
+    const url = query ? `/transaction/admin/summary?${query}` : "/transaction/admin/summary"
+    const response = await getData(url)
+    return response.data?.data ?? null
+}
+
+export const getAdminTransactionsAPI = async(params: Record<string, unknown> = {}) => {
+    const query = buildQuery(params)
+    const url = query ? `/transaction/admin?${query}` : "/transaction/admin"
+    const response = await getData(url)
+    return response.data?.data ?? null
+}

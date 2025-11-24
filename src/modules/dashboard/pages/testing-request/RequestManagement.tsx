@@ -303,6 +303,17 @@ const TestRequestManagement = () => {
   const [bugReportForm, setBugReportForm] = useState(() => ({ ...BUG_REPORT_FORM_INITIAL }));
   const [statusForm, setStatusForm] = useState(() => ({ ...STATUS_FORM_INITIAL }));
   const [quoteForm, setQuoteForm] = useState<QuoteFormState>(() => ({ ...QUOTE_FORM_INITIAL }));
+
+  const formatCouponDiscount = useCallback((value?: number | null) => {
+    if (typeof value !== 'number') {
+      return null;
+    }
+    if (value >= 0 && value <= 1) {
+      const percent = value * 100;
+      return `${percent.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
+    }
+    return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  }, []);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [lifecycleLoading, setLifecycleLoading] = useState(false);
@@ -1492,6 +1503,23 @@ const TestRequestManagement = () => {
                         ))}
                       </div>
                     ) : null}
+                  </div>
+                )}
+
+                {selectedRequest.details.userCouponCode && (
+                  <div className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-4">
+                    <div className="text-xs uppercase tracking-wide text-gray-500">Customer Coupon</div>
+                    <div className="mt-1 text-lg font-light text-emerald-300">
+                      {selectedRequest.details.userCouponCode}
+                    </div>
+                    {formatCouponDiscount(selectedRequest.details.userCouponDiscountAmount) && (
+                      <div className="mt-2 text-sm text-gray-400">
+                        Discount applied:{' '}
+                        <span className="text-emerald-200">
+                          {formatCouponDiscount(selectedRequest.details.userCouponDiscountAmount)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 

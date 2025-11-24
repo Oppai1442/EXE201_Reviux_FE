@@ -47,6 +47,8 @@ export interface TestingRequestDetails {
   testingTypes?: string[] | null;
   testingScope?: TestingScopeItem[] | null;
   requestedTokenFee?: number | null;
+  userCouponCode?: string | null;
+  userCouponDiscountAmount?: number | null;
   quotedPrice?: number | null;
   quoteCurrency?: string | null;
   quoteNotes?: string | null;
@@ -108,6 +110,8 @@ export interface SubmitTestingRequestPayload {
   requestedTokenFee?: number;
   deadline?: string;
   referenceUrl?: string;
+  couponCode?: string;
+  couponDiscountAmount?: number;
   archive?: File | null;
 }
 
@@ -134,6 +138,14 @@ export const submitTestingRequestAPI = async (payload: SubmitTestingRequestPaylo
 
   if (payload.referenceUrl) {
     formData.append('referenceUrl', payload.referenceUrl);
+  }
+
+  if (payload.couponCode) {
+    formData.append('couponCode', payload.couponCode);
+  }
+
+  if (typeof payload.couponDiscountAmount === 'number') {
+    formData.append('couponDiscountAmount', String(payload.couponDiscountAmount));
   }
 
   if (payload.archive) {

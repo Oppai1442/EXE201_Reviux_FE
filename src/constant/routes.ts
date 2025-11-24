@@ -30,7 +30,9 @@ export const ROUTES = {
             USER_MANAGEMENT: { path: 'user-list', label: 'User List', getPath: () => '/dashboard/user-list' },
             PERMISSION_MANAGEMENT: { path: 'permissions', label: 'Permission Management', getPath: () => '/dashboard/permissions' },
             SUBSCRIPTIONS: { path: 'subscriptions', label: 'Subscriptions', getPath: () => '/dashboard/subscriptions' },
-            TRANSACTION: { path: 'transaction', label: 'Payment', getPath: () => '/dashboard/transaction' },
+            MY_TRANSACTION: { path: 'transaction/my-transaction', label: 'My Transaction', getPath: () => '/dashboard/transaction/my-transaction' },
+            TRANSACTION: { path: 'transactions', label: 'Transactions', getPath: () => '/dashboard/transactions' },
+
 
             //Testing request
             REQUEST_MANAGEMENT: { path: 'requests', label: 'Request Management', getPath: () => '/dashboard/requests' },
@@ -56,6 +58,7 @@ export const ROUTES = {
             // NOTIFICATION_SETTINGS: { path: 'settings/notification', label: 'Notification' },
 
             LOG: { path: 'log', label: 'Log', getPath: () => '/dashboard/log' },
+            COUPONS: { path: 'coupons', label: 'Coupons', getPath: () => '/dashboard/coupons' },
         }
     },
 

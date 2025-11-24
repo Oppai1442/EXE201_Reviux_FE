@@ -12,3 +12,13 @@ export interface Transaction {
     paymentMethod: string,
     status: TransactionStaus,
 } 
+
+export interface AdminTransactionSummary {
+    totalCount: number;
+    totalVolume: number;
+    creditVolume: number;
+    debitVolume: number;
+    successCount: number;
+    failedCount: number;
+    pendingCount: number;
+}

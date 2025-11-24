@@ -30,3 +30,12 @@ export const signUp = async (credentials: signUpCredentials) => {
     throw error;
   }
 }
+
+export const signInWithGoogle = async (token: string) => {
+  try {
+    const response = await postData<LoginResponse>("/auth/google", { token });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}

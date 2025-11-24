@@ -44,6 +44,13 @@ const DashboardLayout = () => {
       roles: ["ROLE_ADMIN"]
     },
     {
+      id: ROUTES.DASHBOARD.child.COUPONS.path,
+      label: ROUTES.DASHBOARD.child.COUPONS.label,
+      icon: Receipt,
+      submenu: null,
+      roles: ["ROLE_ADMIN", "ROLE_STAFF"]
+    },
+    {
       id: ROUTES.DASHBOARD.child.USER_MANAGEMENT.path,
       label: ROUTES.DASHBOARD.child.USER_MANAGEMENT.label,
       icon: Users,
@@ -59,7 +66,7 @@ const DashboardLayout = () => {
           id: ROUTES.DASHBOARD.child.MY_REQUESTS.path,
           label: ROUTES.DASHBOARD.child.MY_REQUESTS.label,
           icon: ClipboardList,
-          roles: ["ROLE_USER", "ROLE_ADMIN", "ROLE_STAFF"],
+          roles: ["ROLE_USER"],
         },
         {
           id: ROUTES.DASHBOARD.child.REQUEST_MANAGEMENT.path,
@@ -84,10 +91,18 @@ const DashboardLayout = () => {
       roles: ["ROLE_ADMIN"]
     },
     {
+      id: ROUTES.DASHBOARD.child.MY_TRANSACTION.path,
+      label: ROUTES.DASHBOARD.child.MY_TRANSACTION.label,
+      icon: CreditCard,
+      submenu: null,
+      // roles: ["ROLE_USER"]
+    },
+    {
       id: ROUTES.DASHBOARD.child.TRANSACTION.path,
       label: ROUTES.DASHBOARD.child.TRANSACTION.label,
       icon: CreditCard,
       submenu: null,
+      roles: ["ROLE_ADMIN"]
     },
     {
       id: 'ticket',

@@ -88,6 +88,8 @@ interface RequestItem {
   logs: TestLogInfo[];
   bugReports: BugReport[];
   requestedTokenFee?: number | null;
+  userCouponCode?: string | null;
+  userCouponDiscountAmount?: number | null;
   testingScope?: TestingScopeItem[] | null;
   quotedPrice?: number | null;
   quoteCurrency?: string | null;
@@ -157,6 +159,17 @@ interface RequestDetailsDrawerProps {
 
 const DEFAULT_PRIORITY: RequestPriority = "medium";
 const ITEMS_PER_PAGE = 6;
+
+const formatCouponDiscount = (value?: number | null) => {
+  if (typeof value !== "number") {
+    return null;
+  }
+  if (value >= 0 && value <= 1) {
+    const percent = value * 100;
+    return `${percent.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
+  }
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+};
 
 const severityPriorityMap: Record<string, RequestPriority> = {
   CRITICAL: "urgent",
@@ -854,6 +867,21 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                 </div>
               )}
 
+              {request.userCouponCode && (
+                <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Coupon</div>
+                  <div className="mt-2 text-lg font-light text-emerald-300">{request.userCouponCode}</div>
+                  {formatCouponDiscount(request.userCouponDiscountAmount) && (
+                    <div className="mt-2 text-xs text-gray-400">
+                      Discount applied:{" "}
+                      <span className="text-emerald-200">
+                        {formatCouponDiscount(request.userCouponDiscountAmount)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
                 <div className="text-xs uppercase tracking-wide text-gray-500">Quote Details</div>
                 {request.quotedPrice != null ? (
@@ -1281,6 +1309,8 @@ const MyRequestsPage: React.FC = () => {
         logs: detail.logs ?? [],
         bugReports: reports,
         requestedTokenFee: detail.requestedTokenFee ?? null,
+        userCouponCode: detail.userCouponCode ?? null,
+        userCouponDiscountAmount: detail.userCouponDiscountAmount ?? null,
         testingScope: detail.testingScope ?? null,
         quotedPrice: detail.quotedPrice ?? null,
         quoteCurrency: detail.quoteCurrency ?? null,

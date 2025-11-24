@@ -11,14 +11,18 @@ import {
   Trash2,
   Plus,
   Minus,
+  Check,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import type { AxiosError } from "axios";
 import {
   submitTestingRequestAPI,
   type SubmitTestingRequestPayload,
 } from "../services/testingRequestService";
 import { getTokenCostForType } from "../utils/tokenCost";
 import type { UserTokenInfo } from "../services/userTokenService";
+import { useAuth } from "@/context/AuthContext";
+import { couponService } from "@/services/coupon/couponService";
 
 interface QATestingFormProps {
   onClose: () => void;
@@ -34,8 +38,14 @@ interface LocalFormState {
   scopeAllocations: Record<string, number>;
   deadline: string;
   referenceUrl: string;
+  couponCode: string;
   archive: File | null;
 }
+
+type CouponValidationState = {
+  status: "idle" | "checking" | "valid" | "invalid";
+  message?: string;
+};
 
 const TESTING_OPTIONS = [
   "Functional Testing",
@@ -63,12 +73,18 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
     scopeAllocations: {},
     deadline: "",
     referenceUrl: "",
+    couponCode: "",
     archive: null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { user } = useAuth();
+  const [couponValidation, setCouponValidation] = useState<CouponValidationState>({
+    status: "idle",
+  });
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
 
   const isValid = useMemo(() => {
     return (
@@ -187,6 +203,8 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
       requestedTokenFee: requiredTokens > 0 ? requiredTokens : undefined,
       deadline: formState.deadline || undefined,
       referenceUrl: formState.referenceUrl.trim() || undefined,
+      couponCode: appliedCoupon?.code,
+      couponDiscountAmount: appliedCoupon ? Number(appliedCoupon.discount) : undefined,
       archive: formState.archive,
     };
 
@@ -208,6 +226,66 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  const getCouponErrorMessage = (error: unknown) => {
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as AxiosError<{ message?: string; detail?: string; error?: string }>;
+      return (
+        axiosError.response?.data?.message ??
+        axiosError.response?.data?.detail ??
+        axiosError.response?.data?.error ??
+        "Coupon is not valid."
+      );
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return "Coupon validation failed.";
+  };
+
+  useEffect(() => {
+    const rawCode = formState.couponCode.trim();
+    if (rawCode.length === 0) {
+      setCouponValidation({ status: "idle" });
+      setAppliedCoupon(null);
+      return;
+    }
+
+    const normalizedCode = rawCode.toUpperCase();
+    setCouponValidation({ status: "checking" });
+    setAppliedCoupon(null);
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const amount = Math.max(requiredTokens || 0, 1);
+        const response = await couponService.applyCoupon(normalizedCode, amount, {
+          id: user?.id ?? undefined,
+          email: user?.email ?? undefined,
+        });
+        const discountValue = Number(response.discount ?? 0);
+        setCouponValidation({
+          status: "valid",
+          message:
+            response.message ??
+            `Coupon applied. Discount ${discountValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+        });
+        setAppliedCoupon({
+          code: normalizedCode,
+          discount: discountValue,
+        });
+      } catch (error) {
+        setCouponValidation({
+          status: "invalid",
+          message: getCouponErrorMessage(error),
+        });
+        setAppliedCoupon(null);
+      }
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [formState.couponCode, requiredTokens, user?.id, user?.email]);
 
   return (
     <>
@@ -303,6 +381,45 @@ const QATestingForm: React.FC<QATestingFormProps> = ({
                 className="w-full rounded-lg border border-gray-800/60 bg-gray-900/60 px-4 py-3 pl-10 text-sm text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-gray-400">Coupon (optional)</label>
+            <input
+              type="text"
+              value={formState.couponCode}
+              onChange={(event) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  couponCode: event.target.value.toUpperCase(),
+                }))
+              }
+              placeholder="COUPON2024"
+              className="w-full rounded-lg border border-gray-800/60 bg-gray-900/60 px-4 py-3 text-sm uppercase tracking-wide text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+            />
+            {couponValidation.status === "checking" && (
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Validating coupon...
+              </div>
+            )}
+            {couponValidation.status === "valid" && (
+              <div className="flex items-center gap-2 text-xs text-emerald-300">
+                <Check className="h-3.5 w-3.5" />
+                {couponValidation.message ??
+                  (appliedCoupon
+                    ? `Coupon applied. Discount ${appliedCoupon.discount.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}`
+                    : "Coupon valid.")}
+              </div>
+            )}
+            {couponValidation.status === "invalid" && (
+              <div className="flex items-center gap-2 text-xs text-rose-300">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {couponValidation.message ?? "Coupon is not valid."}
+              </div>
+            )}
           </div>
         </div>
 

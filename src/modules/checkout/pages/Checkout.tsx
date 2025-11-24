@@ -77,8 +77,8 @@ const BASE_PAYMENT_METHODS: PaymentMethodOption[] = [
   {
     id: "PAYOS",
     name: "PayOS",
-    image: "",
-    description: "Pay via PayOS network (coming soon)",
+    image: "https://avatars.githubusercontent.com/u/142285739?s=200&v=4",
+    description: "Pay via PayOS network",
     available: false,
   },
 ];
@@ -205,7 +205,15 @@ const CheckoutPage = () => {
       statusLabel: walletStatusLabel,
     };
 
-    return [walletOption, ...baseMethods];
+    return [walletOption, ...baseMethods]
+      .map((method, originalIndex) => ({ ...method, originalIndex }))
+      .sort((a, b) => {
+        if (a.available === b.available) {
+          return a.originalIndex - b.originalIndex; // keep original ordering when availability matches
+        }
+        return a.available ? -1 : 1; // available methods first
+      })
+      .map(({ originalIndex, ...rest }) => rest);
   }, [amountDue, backendMethodLookup, checkoutDetail.checkoutType, walletBalance]);
 
   useEffect(() => {

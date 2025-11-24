@@ -320,7 +320,7 @@ const MySubscription: React.FC = () => {
   };
 
   const handleGoToTransactions = () => {
-    navigate(`${ROUTES.DASHBOARD.path}/${ROUTES.DASHBOARD.child.TRANSACTION.path}`);
+    navigate(`${ROUTES.DASHBOARD.path}/${ROUTES.DASHBOARD.child.MY_TRANSACTION.path}`);
   };
 
   const handleCancelSubscription = () => {
