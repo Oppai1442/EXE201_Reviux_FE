@@ -84,6 +84,10 @@ const BASE_PAYMENT_METHODS: PaymentMethodOption[] = [
 ];
 
 
+const PAYOS_SUCCESS_STATUSES = new Set(["success", "succeeded", "paid", "complete", "completed", "0", "00"]);
+const PAYOS_CANCELLED_STATUSES = new Set(["cancel", "canceled", "cancelled", "1", "user_cancelled", "true"]);
+const PAYOS_FAILED_STATUSES = new Set(["failed", "failure", "error", "expired", "2", "refunded"]);
+
 const CheckoutPage = () => {
   const { id = "" } = useParams();
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodId | undefined>(undefined)
@@ -245,6 +249,8 @@ const CheckoutPage = () => {
       const basePath = `/checkout/${id}`;
       const providerParam = (params.get("provider") ?? params.get("platform") ?? "").toLowerCase();
       const statusParam = params.get("status")?.toLowerCase();
+      const cancelParam = (params.get("cancel") ?? "").toLowerCase();
+      const payosCodeParam = params.get("code")?.toLowerCase();
       const stripeSessionId = params.get("session_id");
       const vnpParams: Record<string, string> = {};
       const payosParams: Record<string, string> = {};
@@ -283,16 +289,28 @@ const CheckoutPage = () => {
       }
 
       if (providerParam === "payos" && Object.keys(payosParams).length > 0) {
-        try {
-          setIsProcessing(true);
-          await checkoutRedirectConfirm({ checkoutId: id, provider: "payos", params: payosParams });
-          toast.success("PayOS payment confirmed successfully.");
-        } catch (error) {
-          console.error("Failed to confirm PayOS payment:", error);
-          toast.error("Failed to confirm PayOS payment.");
-        } finally {
-          setIsProcessing(false);
+        const isPayosCancelled = PAYOS_CANCELLED_STATUSES.has(statusParam ?? "") || PAYOS_CANCELLED_STATUSES.has(cancelParam);
+        const isPayosFailed = PAYOS_FAILED_STATUSES.has(statusParam ?? "");
+        const isPayosSuccess = PAYOS_SUCCESS_STATUSES.has(statusParam ?? "") || PAYOS_SUCCESS_STATUSES.has(payosCodeParam ?? "");
+
+        if (isPayosCancelled) {
+          toast.error("PayOS payment was cancelled.");
           window.history.replaceState(null, "", basePath);
+        } else if (isPayosFailed) {
+          toast.error("PayOS payment failed.");
+          window.history.replaceState(null, "", basePath);
+        } else if (isPayosSuccess || (!statusParam && !cancelParam)) {
+          try {
+            setIsProcessing(true);
+            await checkoutRedirectConfirm({ checkoutId: id, provider: "payos", params: payosParams });
+            toast.success("PayOS payment confirmed successfully.");
+          } catch (error) {
+            console.error("Failed to confirm PayOS payment:", error);
+            toast.error("Failed to confirm PayOS payment.");
+          } finally {
+            setIsProcessing(false);
+            window.history.replaceState(null, "", basePath);
+          }
         }
       } else if (Object.keys(vnpParams).length > 0) {
         try {
