@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from 'react';
+import Joyride, { type CallBackProps, type Step } from 'react-joyride';
 import {
   Search,
   Filter,
@@ -303,6 +304,12 @@ const TestRequestManagement = () => {
   const [bugReportForm, setBugReportForm] = useState(() => ({ ...BUG_REPORT_FORM_INITIAL }));
   const [statusForm, setStatusForm] = useState(() => ({ ...STATUS_FORM_INITIAL }));
   const [quoteForm, setQuoteForm] = useState<QuoteFormState>(() => ({ ...QUOTE_FORM_INITIAL }));
+  const [tourRun, setTourRun] = useState(false);
+  const [tourKey, setTourKey] = useState(() => Date.now());
+  const [tourAutoOpenedDetail, setTourAutoOpenedDetail] = useState(false);
+  const [tourStage, setTourStage] = useState<'overview' | 'detail' | null>(null);
+  const filtersInitialOpenRef = useRef(showFilters);
+  const tourPreviousSelectionRef = useRef<RequestTableItem | null>(null);
 
   const formatCouponDiscount = useCallback((value?: number | null) => {
     if (typeof value !== 'number') {
@@ -389,9 +396,213 @@ const TestRequestManagement = () => {
     [],
   );
 
+  const tourOverviewSteps = useMemo<Step[]>(() => {
+    const steps: Step[] = [
+      {
+        target: '#testing-tour-header',
+        title: 'Mission control',
+        content: 'This hero header keeps the Testing Request Management context handy and now hosts quick actions.',
+        disableBeacon: true,
+      },
+      {
+        target: '#testing-tour-search',
+        title: 'Global search',
+        content: 'Quickly locate a request by ID, project name, scope, or description with the fuzzy search input.',
+      },
+      {
+        target: '#testing-tour-filter-toggle',
+        title: 'Precision filters',
+        content: 'Use the filter toolkit to slice requests by lifecycle, priority, test type, or time range.',
+      },
+      {
+        target: '#testing-tour-filters',
+        title: 'Saved presets',
+        content: 'Each dropdown works together so you can stack multiple filters without leaving the page.',
+      },
+      {
+        target: '#testing-tour-table',
+        title: 'Unified queue',
+        content: 'The table lists every request with sortable columns, live progress, and quick exports.',
+      },
+    ];
+
+    if (filteredRequests.length > 0) {
+      steps.push({
+        target: '#testing-tour-row-actions',
+        title: 'Row level controls',
+        content: 'Open the timeline, download the attachment, or inspect logs directly from each row.',
+      });
+    }
+
+    steps.push({
+      target: '#testing-tour-pagination',
+      title: 'Navigate history',
+      content: 'Use the paginator to move across the backlog without losing your current filters.',
+    });
+
+    return steps;
+  }, [filteredRequests.length]);
+
+  const tourDetailSteps = useMemo<Step[]>(() => {
+    if (filteredRequests.length === 0) {
+      return [];
+    }
+    return [
+      {
+        target: '#testing-tour-detail-sidebar',
+        title: 'Request cockpit',
+        content: 'The sidebar summarizes the selected request with coupon intel, quote data, and status badges.',
+        placement: 'right',
+      },
+      {
+        target: '#testing-tour-action-buttons',
+        title: 'Workflow shortcuts',
+        content: 'Assign testers, send quotes, log bugs, or change status with a single click from this stack.',
+        placement: 'right',
+      },
+      {
+        target: '#testing-tour-detail-forms',
+        title: 'Context-aware forms',
+        content: 'Each form opens inline so you can capture updates without leaving the request view.',
+        placement: 'left',
+      },
+      {
+        target: '#testing-tour-progress-updates',
+        title: 'Progress intelligence',
+        content: 'Track the narrative of updates, logs, and reviewer notes to understand momentum.',
+        placement: 'top',
+      },
+      {
+        target: '#testing-tour-bug-reports',
+        title: 'Issue tracking',
+        content: 'Every bug linked to the request appears here with severity, status, and assigned tester.',
+        placement: 'top',
+      },
+    ];
+  }, [filteredRequests.length]);
+
+  const currentTourSteps = useMemo(
+    () => (tourStage === 'detail' ? tourDetailSteps : tourOverviewSteps),
+    [tourDetailSteps, tourOverviewSteps, tourStage],
+  );
+
+  const handleTourFinished = useCallback(() => {
+    setTourRun(false);
+    setTourStage(null);
+    setShowFilters(filtersInitialOpenRef.current);
+    const previousSelection = tourPreviousSelectionRef.current;
+    if (previousSelection) {
+      setSelectedRequest(previousSelection);
+    } else if (tourAutoOpenedDetail) {
+      setSelectedRequest(null);
+    }
+    setActiveForm(null);
+    setTourAutoOpenedDetail(false);
+    tourPreviousSelectionRef.current = null;
+  }, [tourAutoOpenedDetail]);
+
+  useEffect(() => {
+    if (!tourStage) {
+      setTourRun(false);
+      return;
+    }
+
+    const ensureDetailSelection = () => {
+      if (selectedRequest) {
+        return true;
+      }
+      const fallback = filteredRequests[0];
+      if (fallback) {
+        setSelectedRequest(fallback);
+        setTourAutoOpenedDetail(true);
+        return true;
+      }
+      return false;
+    };
+
+    if (tourStage === 'overview') {
+      setSelectedRequest(null);
+      setActiveForm(null);
+      setTourAutoOpenedDetail(false);
+      setShowFilters(true);
+    } else if (tourStage === 'detail') {
+      if (!ensureDetailSelection()) {
+        handleTourFinished();
+        return;
+      }
+      setActiveForm(null);
+    }
+
+    setTourRun(true);
+    setTourKey(Date.now());
+  }, [filteredRequests, handleTourFinished, selectedRequest, tourStage]);
+
+  useEffect(() => {
+    if (tourStage !== 'detail') {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [tourStage]);
+
+  const handleJoyrideCallback = useCallback(
+    (data: CallBackProps) => {
+      const { status, type } = data;
+      if (type === 'error:target_not_found') {
+        return;
+      }
+
+      if (tourStage === 'detail' && type === 'step:before') {
+        const targetSelector =
+          typeof data.step?.target === 'string' ? data.step.target : undefined;
+        if (targetSelector) {
+          const element = document.querySelector<HTMLElement>(targetSelector);
+          element?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'center',
+          });
+        }
+      }
+
+      if (['finished', 'skipped'].includes(status)) {
+        handleTourFinished();
+      }
+    },
+    [handleTourFinished, tourStage],
+  );
+
+  const handleStartTour = useCallback(() => {
+    if (requests.length === 0) {
+      toast.error('Load at least one testing request before starting the guided tour.');
+      return;
+    }
+    filtersInitialOpenRef.current = showFilters;
+    tourPreviousSelectionRef.current = selectedRequest;
+    setSelectedRequest(null);
+    setActiveForm(null);
+    setShowFilters(true);
+    setTourAutoOpenedDetail(false);
+    setTourStage('overview');
+  }, [requests.length, selectedRequest, showFilters]);
+
+  const handleStartDetailTour = useCallback(() => {
+    if (!selectedRequest && filteredRequests.length === 0) {
+      toast.error('Select a testing request first.');
+      return;
+    }
+    filtersInitialOpenRef.current = showFilters;
+    tourPreviousSelectionRef.current = selectedRequest;
+    setTourStage('detail');
+  }, [filteredRequests.length, selectedRequest, showFilters]);
+
   const canSendQuote = selectedRequest?.status === 'PENDING';
   const canMarkReadyForReview = selectedRequest?.status === 'IN_PROGRESS';
   const selectedStatusIsTerminal = selectedRequest ? isTerminalStatus(selectedRequest.status) : false;
+  const detailTourActive = tourStage === 'detail' && tourRun;
 
   useEffect(() => {
     const loadStatuses = async () => {
@@ -1018,7 +1229,6 @@ const TestRequestManagement = () => {
 
   const handleViewDetails = (request: RequestTableItem) => {
     setSelectedRequest(request);
-    console.log(request.status)
   };
 
   const handleCloseDetails = () => {
@@ -1084,6 +1294,34 @@ const TestRequestManagement = () => {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white relative overflow-hidden">
+      <Joyride
+        key={tourKey}
+        steps={currentTourSteps}
+        run={tourRun && currentTourSteps.length > 0}
+        continuous
+        showProgress
+        showSkipButton
+        scrollToFirstStep
+        disableOverlayClose
+        callback={handleJoyrideCallback}
+        styles={{
+          options: {
+            primaryColor: '#06b6d4',
+            backgroundColor: '#020617',
+            textColor: '#f8fafc',
+            zIndex: 10000,
+          },
+          tooltipContainer: {
+            borderRadius: '1rem',
+          },
+        }}
+        locale={{
+          next: 'Next',
+          back: 'Back',
+          last: 'Finish',
+          skip: 'Skip tour',
+        }}
+      />
       {/* Dynamic Background */}
       <div
         className="fixed inset-0 opacity-30 pointer-events-none"
@@ -1110,17 +1348,34 @@ const TestRequestManagement = () => {
 
       {/* Header */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <h1 className="text-4xl font-light text-white mb-2">
-          Testing Request <span className="text-cyan-400">Management</span>
-        </h1>
-        <p className="text-gray-300 font-light">Manage and track all testing requests efficiently</p>
+        <div
+          id="testing-tour-header"
+          className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+        >
+          <div>
+            <h1 className="text-4xl font-light text-white mb-2">
+              Testing Request <span className="text-cyan-400">Management</span>
+            </h1>
+            <p className="text-gray-300 font-light">Manage and track all testing requests efficiently</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleStartTour}
+              disabled={isLoading || requests.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/50 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-200 transition-colors duration-200 hover:bg-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Start guided tour
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8" ref={containerRef}>
         {/* Search and Filters */}
         <div className="mb-8 space-y-4">
           {/* Search Bar */}
-          <div className="relative">
+          <div className="relative" id="testing-tour-search">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
@@ -1132,7 +1387,7 @@ const TestRequestManagement = () => {
           </div>
 
           {/* Filter Toggle */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between" id="testing-tour-filter-toggle">
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800/50 rounded-lg backdrop-blur-sm hover:bg-gray-800/50 transition-all duration-300"
@@ -1149,7 +1404,10 @@ const TestRequestManagement = () => {
 
           {/* Filters Panel */}
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-900/30 border border-gray-800/50 rounded-lg backdrop-blur-sm">
+            <div
+              id="testing-tour-filters"
+              className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-900/30 border border-gray-800/50 rounded-lg backdrop-blur-sm"
+            >
               <div>
                 <label className="block text-sm font-light text-gray-300 mb-2">Status</label>
                 <select
@@ -1215,7 +1473,10 @@ const TestRequestManagement = () => {
         </div>
 
         {/* Requests Table */}
-        <div className="bg-gray-900/30 border border-gray-800/50 rounded-lg backdrop-blur-sm overflow-hidden">
+        <div
+          id="testing-tour-table"
+          className="bg-gray-900/30 border border-gray-800/50 rounded-lg backdrop-blur-sm overflow-hidden"
+        >
           <div className="overflow-x-auto">
             <table className="w-full table-fixed">
               <thead className="bg-gray-800/50">
@@ -1348,7 +1609,10 @@ const TestRequestManagement = () => {
                         <span className="text-xs text-gray-400 mt-1">{request.progress}%</span>
                       </td>
                       <td className="px-6 py-4 align-top">
-                        <div className="flex items-center gap-2">
+                        <div
+                          className="flex items-center gap-2"
+                          id={index === 0 ? 'testing-tour-row-actions' : undefined}
+                        >
                           <button
                             type="button"
                             onClick={() => handleViewDetails(request)}
@@ -1386,7 +1650,7 @@ const TestRequestManagement = () => {
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between mt-8">
+        <div className="flex items-center justify-between mt-8" id="testing-tour-pagination">
           <div className="text-sm text-gray-400 font-light">
             Showing {displayStart} to {displayEnd} of {totalRecords} requests
           </div>
@@ -1445,7 +1709,10 @@ const TestRequestManagement = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="relative w-full max-w-7xl h-[90vh] rounded-2xl border border-gray-800/60 bg-gray-950/95 shadow-2xl overflow-hidden flex">
             {/* Left Sidebar - Main Info & Actions */}
-            <div className="w-80 border-r border-gray-800/60 bg-gray-900/40 p-6 overflow-y-auto">
+            <div
+              className="w-80 border-r border-gray-800/60 bg-gray-900/40 p-6 overflow-y-auto"
+              id="testing-tour-detail-sidebar"
+            >
               <button
                 type="button"
                 onClick={handleCloseDetails}
@@ -1459,6 +1726,13 @@ const TestRequestManagement = () => {
                 <p className="mt-2 text-sm font-light text-gray-300">
                   {selectedRequest.description || 'No description provided for this request.'}
                 </p>
+                <button
+                  type="button"
+                  onClick={handleStartDetailTour}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 px-3 py-1.5 text-xs font-medium text-cyan-200 transition-colors duration-200 hover:bg-cyan-500/10"
+                >
+                  Launch detail guide
+                </button>
               </div>
 
               <div className="space-y-4 mb-6">
@@ -1583,7 +1857,7 @@ const TestRequestManagement = () => {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3" id="testing-tour-action-buttons">
                 {user && (
                   <button
                     type="button"
@@ -1591,7 +1865,8 @@ const TestRequestManagement = () => {
                     disabled={
                       actionLoading ||
                       selectedRequest.assignedTester !== 'Unassigned' ||
-                      selectedStatusIsTerminal
+                      selectedStatusIsTerminal ||
+                      detailTourActive
                     }
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -1607,8 +1882,8 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('quote')}
-                  disabled={!canSendQuote || selectedStatusIsTerminal}
-                  title={!canSendQuote || selectedStatusIsTerminal ? 'Need to set status to Pending' : undefined}
+                  disabled={!canSendQuote || selectedStatusIsTerminal || detailTourActive}
+                  title={!canSendQuote || selectedStatusIsTerminal ? 'Need to set status to Pending' : detailTourActive ? 'Finish the detail tour to use actions' : undefined}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'quote'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
@@ -1620,7 +1895,7 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('assign')}
-                  disabled={selectedStatusIsTerminal}
+                  disabled={selectedStatusIsTerminal || detailTourActive}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'assign'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
@@ -1632,7 +1907,7 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('status')}
-                  disabled={selectedStatusIsTerminal || statusOptionsForRequest.length === 0}
+                  disabled={selectedStatusIsTerminal || statusOptionsForRequest.length === 0 || detailTourActive}
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'status'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
@@ -1644,8 +1919,14 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('testLog')}
-                  disabled={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS'}
-                  title={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS' ? 'Available when status is IN_PROGRESS' : undefined}
+                  disabled={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS' || detailTourActive}
+                  title={
+                    selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS'
+                      ? 'Available when status is IN_PROGRESS'
+                      : detailTourActive
+                        ? 'Finish the detail tour to use actions'
+                        : undefined
+                  }
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'testLog'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
@@ -1657,8 +1938,14 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleToggleForm('bugReport')}
-                  disabled={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS'}
-                  title={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS' ? 'Available when status is IN_PROGRESS' : undefined}
+                  disabled={selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS' || detailTourActive}
+                  title={
+                    selectedStatusIsTerminal || selectedRequest?.status !== 'IN_PROGRESS'
+                      ? 'Available when status is IN_PROGRESS'
+                      : detailTourActive
+                        ? 'Finish the detail tour to use actions'
+                        : undefined
+                  }
                   className={`w-full rounded-lg border px-4 py-2 text-sm font-light transition-colors duration-200 ${activeForm === 'bugReport'
                     ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-200'
                     : 'border-gray-800/60 bg-gray-900/40 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-200'
@@ -1670,7 +1957,7 @@ const TestRequestManagement = () => {
                 <button
                   type="button"
                   onClick={handleMarkReadyForReview}
-                  disabled={!canMarkReadyForReview || lifecycleLoading}
+                  disabled={!canMarkReadyForReview || lifecycleLoading || detailTourActive}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {lifecycleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
@@ -1680,7 +1967,7 @@ const TestRequestManagement = () => {
             </div>
 
             {/* Right Content Area - Forms & Details */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6" id="testing-tour-detail-forms">
               {/* Forms Section */}
               {activeForm === 'assign' && (
                 <AssignTesterForm
@@ -1745,7 +2032,10 @@ const TestRequestManagement = () => {
               {/* Content Grid - 2 Columns */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Progress Updates */}
-                <div className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-5">
+                <div
+                  className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-5"
+                  id="testing-tour-progress-updates"
+                >
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-sm font-light text-white">Progress Updates</h3>
                     <span className="text-xs font-light text-gray-500">{selectedRequest.details.updates.length} entries</span>
@@ -1802,7 +2092,10 @@ const TestRequestManagement = () => {
               </div>
 
               {/* Bug Reports - Full Width */}
-              <div className="mt-6 rounded-xl border border-gray-800/60 bg-gray-900/40 p-5">
+              <div
+                className="mt-6 rounded-xl border border-gray-800/60 bg-gray-900/40 p-5"
+                id="testing-tour-bug-reports"
+              >
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-sm font-light text-white">Bug Reports</h3>
                   <span className="text-xs font-light text-gray-500">{selectedRequest.bugReports.length} items</span>
@@ -1880,6 +2173,10 @@ const TestRequestManagement = () => {
 
         ::-webkit-scrollbar-thumb:hover {
           background: rgba(6, 182, 212, 0.5);
+        }
+
+        html, body {
+          background-color: #020617;
         }
       `}</style>
     </div>

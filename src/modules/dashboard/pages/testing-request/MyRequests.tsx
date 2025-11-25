@@ -1,4 +1,5 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Joyride, { type CallBackProps, type Step } from "react-joyride";
 import {
   Search,
   Filter,
@@ -721,7 +722,7 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
   }
 
   return (
-    <div className="mt-8 flex items-center justify-center gap-2">
+    <div id="myreq-tour-pagination" className="mt-8 flex items-center justify-center gap-2">
       <button
         type="button"
         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
@@ -804,9 +805,86 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
     return null;
   }
 
+  const [detailTourRun, setDetailTourRun] = useState(false);
+  const [detailTourKey, setDetailTourKey] = useState(() => Date.now());
+
+  const detailSteps = useMemo<Step[]>(() => [
+    {
+      target: "#myreq-detail-header",
+      title: "Request snapshot",
+      content: "Quickly review the project summary, latest status, and priority from this panel.",
+      disableBeacon: true,
+    },
+    {
+      target: "#myreq-detail-metrics",
+      title: "Financial & scope info",
+      content: "Token fees, coupon usage, and quote data are organized here for easy reference.",
+    },
+    {
+      target: "#myreq-detail-actions",
+      title: "Customer actions",
+      content: "Accept quotes, confirm completion, or raise support tickets using these buttons.",
+    },
+    {
+      target: "#myreq-detail-updates",
+      title: "Progress timeline",
+      content: "See every tester update with its status and timestamp to understand momentum.",
+    },
+    {
+      target: "#myreq-detail-logs",
+      title: "Testing logs",
+      content: "Execution logs summarize findings collected during testing sessions.",
+    },
+    {
+      target: "#myreq-detail-bugs",
+      title: "Bug reports",
+      content: "Linked issues, severities, and conversations all live inside this section.",
+    },
+  ], []);
+
+  const handleDetailTour = useCallback(() => {
+    setDetailTourKey(Date.now());
+    setDetailTourRun(true);
+  }, []);
+
+  const handleDetailTourCallback = useCallback((data: CallBackProps) => {
+    const { status } = data;
+    if (status === "finished" || status === "skipped") {
+      setDetailTourRun(false);
+    }
+  }, []);
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur">
       <div className="relative h-full w-full max-w-[95vw] overflow-hidden rounded-3xl border border-gray-800/70 bg-gray-950/95 shadow-2xl shadow-cyan-500/20">
+        <Joyride
+          key={detailTourKey}
+          steps={detailSteps}
+          run={detailTourRun}
+          continuous
+          showProgress
+          showSkipButton
+          scrollToFirstStep
+          disableOverlayClose
+          callback={handleDetailTourCallback}
+          styles={{
+            options: {
+              primaryColor: "#06b6d4",
+              backgroundColor: "#020617",
+              textColor: "#f8fafc",
+              zIndex: 11000,
+            },
+            tooltipContainer: {
+              borderRadius: "1rem",
+            },
+          }}
+          locale={{
+            next: "Next",
+            back: "Back",
+            last: "Finish",
+            skip: "Skip tour",
+          }}
+        />
         <button
           type="button"
           onClick={onClose}
@@ -818,15 +896,22 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
         <div className="flex h-full gap-6 p-6">
           {/* Left Column - Main Info */}
           <div className="flex w-2/5 flex-col gap-6 overflow-y-auto pr-2">
-            <div>
+            <div id="myreq-detail-header">
               <div className="text-xs text-cyan-400/80">{request.code}</div>
               <h2 className="mt-2 text-2xl font-light text-white">{request.title}</h2>
               <p className="mt-3 text-sm font-light text-gray-300">
                 {request.description || "No description provided for this request."}
               </p>
+              <button
+                type="button"
+                onClick={handleDetailTour}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-800/60 bg-gray-900/60 px-3 py-1.5 text-xs text-white transition-colors duration-200 hover:border-cyan-500/40 hover:text-cyan-200"
+              >
+                Launch detail tour
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div id="myreq-detail-metrics" className="grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-gray-800/70 bg-gray-900/50 p-4">
                 <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
                 <div className="mt-2">
@@ -1020,46 +1105,56 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                 </div>
               )}
 
-            {request.status === "WAITING_CUSTOMER" && onAcceptQuote && (
-              <button
-                type="button"
-                onClick={() => onAcceptQuote(request)}
-                disabled={acceptingQuote}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {acceptingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                Accept Quote &amp; Start Testing
-              </button>
-            )}
+            <div id="myreq-detail-actions" className="space-y-3">
+              {request.status === "WAITING_CUSTOMER" && onAcceptQuote && (
+                <button
+                  type="button"
+                  onClick={() => onAcceptQuote(request)}
+                  disabled={acceptingQuote}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {acceptingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  Accept Quote &amp; Start Testing
+                </button>
+              )}
 
-            {request.status === "READY_FOR_REVIEW" && onConfirmCompletion && (
-              <button
-                type="button"
-                onClick={() => onConfirmCompletion(request)}
-                disabled={confirmingCompletion}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {confirmingCompletion ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                Confirm Completion
-              </button>
-            )}
+              {request.status === "READY_FOR_REVIEW" && onConfirmCompletion && (
+                <button
+                  type="button"
+                  onClick={() => onConfirmCompletion(request)}
+                  disabled={confirmingCompletion}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {confirmingCompletion ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  Confirm Completion
+                </button>
+              )}
 
-            {canCreateTicket && onCreateTicket && (
-              <button
-                type="button"
-                onClick={() => onCreateTicket(request)}
-                disabled={creatingTicket}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {creatingTicket ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Create Support Ticket
-              </button>
-            )}
+              {canCreateTicket && onCreateTicket && (
+                <button
+                  type="button"
+                  onClick={() => onCreateTicket(request)}
+                  disabled={creatingTicket}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creatingTicket ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Create Support Ticket
+                </button>
+              )}
+
+              {!(
+                (request.status === "WAITING_CUSTOMER" && onAcceptQuote) ||
+                (request.status === "READY_FOR_REVIEW" && onConfirmCompletion) ||
+                (canCreateTicket && onCreateTicket)
+              ) && (
+                <p className="text-center text-xs text-gray-500">No actions available for this request yet.</p>
+              )}
+            </div>
           </div>
 
           {/* Right Column - Updates, Logs & Bug Reports */}
           <div className="flex w-3/5 flex-col gap-6 overflow-y-auto pr-2">
-            <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
+            <div id="myreq-detail-updates" className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-light text-white">Latest updates</h3>
@@ -1099,7 +1194,7 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
+            <div id="myreq-detail-logs" className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-light text-white">Recent test logs</h3>
@@ -1127,7 +1222,7 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
               )}
             </div>
 
-            <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
+            <div id="myreq-detail-bugs" className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-light text-white">Bug reports</h3>
@@ -1205,6 +1300,8 @@ const MyRequestsPage: React.FC = () => {
   const [acceptingQuote, setAcceptingQuote] = useState(false);
   const [confirmingCompletion, setConfirmingCompletion] = useState(false);
   const [statusOptions, setStatusOptions] = useState<TestingRequestStatusOption[]>([]);
+  const [tourRun, setTourRun] = useState(false);
+  const [tourKey, setTourKey] = useState(() => Date.now());
 
   const statusMap = useMemo(() => {
     const map: Record<string, TestingRequestStatusOption> = {};
@@ -1689,6 +1786,79 @@ const ownerId = user?.id ?? null;
     return filteredRequests.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredRequests, currentPage]);
 
+  const hasVisibleRequests = paginatedRequests.length > 0;
+  const hasMultiplePages = totalPages > 1;
+
+  const tourSteps = useMemo<Step[]>(() => {
+    const steps: Step[] = [
+      {
+        target: "#myreq-tour-header",
+        title: "Welcome to your testing hub",
+        content: "This control bar keeps quick actions like creating new requests, refreshing data, and launching this guide.",
+        disableBeacon: true,
+      },
+      {
+        target: "#myreq-tour-new-request",
+        title: "Submit a request",
+        content: "Kick off a new QA request when you have enough tokens available.",
+      },
+      {
+        target: "#myreq-tour-tokens",
+        title: "Token overview",
+        content: "Track remaining tokens, reset window, and purchase top-ups without leaving the page.",
+      },
+      {
+        target: "#myreq-tour-stats",
+        title: "Status at a glance",
+        content: "These tiles summarize totals, active work, completions, and high-priority items.",
+      },
+      {
+        target: "#myreq-tour-controls",
+        title: "Search & filters",
+        content: "Combine search, filters, and sorting to zero in on the requests you need.",
+      },
+      {
+        target: "#myreq-tour-list",
+        title: "Request catalogue",
+        content: "Each card highlights scope, status, testers, and shortcuts to detailed information.",
+      },
+    ];
+
+    if (hasVisibleRequests) {
+      steps.push({
+        target: "#myreq-tour-card",
+        title: "Card actions",
+        content: "Open the details drawer to review updates, accept quotes, or confirm completion.",
+      });
+    }
+
+    if (hasMultiplePages) {
+      steps.push({
+        target: "#myreq-tour-pagination",
+        title: "Navigate history",
+        content: "Use pagination controls to explore archived requests while keeping filters intact.",
+      });
+    }
+
+    return steps;
+  }, [hasMultiplePages, hasVisibleRequests]);
+
+  const handleTourCallback = useCallback((data: CallBackProps) => {
+    const { status } = data;
+    if (status === "finished" || status === "skipped") {
+      setTourRun(false);
+    }
+  }, []);
+
+  const handleStartTour = useCallback(() => {
+    if (requests.length === 0) {
+      toast.error("You need at least one testing request to start the tour.");
+      return;
+    }
+    setTourKey(Date.now());
+    setTourRun(true);
+  }, [requests.length]);
+
   const summary = useMemo(() => {
     let inProgress = 0;
     let completed = 0;
@@ -1789,6 +1959,34 @@ const ownerId = user?.id ?? null;
   return (
     <>
     <div className="relative min-h-screen overflow-hidden bg-gray-950 text-white">
+      <Joyride
+        key={tourKey}
+        steps={tourSteps}
+        run={tourRun && tourSteps.length > 0}
+        continuous
+        showProgress
+        showSkipButton
+        scrollToFirstStep
+        disableOverlayClose
+        callback={handleTourCallback}
+        styles={{
+          options: {
+            primaryColor: "#06b6d4",
+            backgroundColor: "#020617",
+            textColor: "#f8fafc",
+            zIndex: 10000,
+          },
+          tooltipContainer: {
+            borderRadius: "1rem",
+          },
+        }}
+        locale={{
+          next: "Next",
+          back: "Back",
+          last: "Finish",
+          skip: "Skip tour",
+        }}
+      />
       <div
         className="pointer-events-none fixed inset-0 opacity-20"
         style={{
@@ -1799,7 +1997,10 @@ const ownerId = user?.id ?? null;
 
       { /* HEADER */}
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <header className="sticky top-0 z-10 -mx-4 mb-8 border-b border-gray-800/60 bg-gray-950/80 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
+        <header
+          id="myreq-tour-header"
+          className="sticky top-0 z-10 -mx-4 mb-8 border-b border-gray-800/60 bg-gray-950/80 px-4 py-4 backdrop-blur sm:px-6 lg:px-8"
+        >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-light tracking-tight">
@@ -1812,6 +2013,14 @@ const ownerId = user?.id ?? null;
             <div className="flex items-center gap-3">
               <button
                 type="button"
+                onClick={handleStartTour}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-800/60 bg-gray-900/60 px-4 py-2 text-sm text-white transition-colors duration-200 hover:border-cyan-500/40 hover:text-cyan-200"
+              >
+                Guided Tour
+              </button>
+              <button
+                type="button"
+                id="myreq-tour-new-request"
                 onClick={handleOpenCreateForm}
                 disabled={showCreateForm || tokenLoading || (tokenInfo != null && tokenInfo.remainingTokens <= 0)}
                 title={tokenInfo && tokenInfo.remainingTokens <= 0 ? "Not enough tokens" : undefined}
@@ -1833,7 +2042,7 @@ const ownerId = user?.id ?? null;
           </div>
         </header>
 
-        <div className="mb-8 rounded-2xl border border-gray-800/60 bg-gray-900/60 p-6">
+        <div id="myreq-tour-tokens" className="mb-8 rounded-2xl border border-gray-800/60 bg-gray-900/60 p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
@@ -1876,7 +2085,7 @@ const ownerId = user?.id ?? null;
           {tokenError ? <p className="mt-3 text-xs text-rose-400">{tokenError}</p> : null}
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div id="myreq-tour-stats" className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="rounded-2xl border border-gray-800/60 bg-gray-900/60 p-4">
             <div className="text-sm text-gray-400">Total requests</div>
             <div className="mt-2 text-2xl font-light text-white">{summary.total}</div>
@@ -1895,7 +2104,7 @@ const ownerId = user?.id ?? null;
           </div>
         </div>
 
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row">
+        <div id="myreq-tour-controls" className="mb-8 flex flex-col gap-4 lg:flex-row">
           <div className="flex-1">
             <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search by title, code, tester, or status..." />
           </div>
@@ -1919,23 +2128,26 @@ const ownerId = user?.id ?? null;
           </div>
         </div>
 
-        {paginatedRequests.length === 0 ? (
-          <div className="rounded-2xl border border-gray-800/60 bg-gray-900/60 py-16 text-center">
-            <h3 className="text-lg font-light text-gray-300">No requests match the current filters.</h3>
-            <p className="mt-2 text-sm text-gray-500">Try updating your search terms or reset the filters.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {paginatedRequests.map((request) => (
-              <RequestCard
-                key={request.id}
-                item={request}
-                onSelect={setSelectedRequest}
-                formatStatusLabel={formatStatusLabel}
-              />
-            ))}
-          </div>
-        )}
+        <div id="myreq-tour-list">
+          {paginatedRequests.length === 0 ? (
+            <div className="rounded-2xl border border-gray-800/60 bg-gray-900/60 py-16 text-center">
+              <h3 className="text-lg font-light text-gray-300">No requests match the current filters.</h3>
+              <p className="mt-2 text-sm text-gray-500">Try updating your search terms or reset the filters.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {paginatedRequests.map((request, index) => (
+                <div id={index === 0 ? "myreq-tour-card" : undefined} key={request.id}>
+                  <RequestCard
+                    item={request}
+                    onSelect={setSelectedRequest}
+                    formatStatusLabel={formatStatusLabel}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       </div>
