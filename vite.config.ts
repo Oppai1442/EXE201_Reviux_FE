@@ -25,7 +25,6 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom'],
           'ui-vendor': ['sweetalert2', 'react-hot-toast'],
           'date-vendor': ['date-fns'],
-          'animation-vendor': ['gsap', 'three', '@mojs/core'],
         },
       },
     },
