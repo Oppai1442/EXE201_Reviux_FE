@@ -43,6 +43,7 @@ import {
   type AssignableTester,
   type TestingRequestStatusOption,
 } from './services/testingRequestService';
+import { buildApiUrl } from '@/utils';
 
 type RequestStatus = string;
 type RequestPriority = 'urgent' | 'high' | 'medium' | 'low';
@@ -1220,6 +1221,10 @@ const TestRequestManagement = () => {
   const displayStart = totalRecords === 0 ? 0 : startIndex + 1;
   const displayEnd = totalRecords === 0 ? 0 : Math.min(startIndex + itemsPerPage, totalRecords);
 
+  useEffect(() => {
+    console.log(JSON.stringify(currentRequests))
+  }, [currentRequests])
+
   const handleSort = (key: SortKey) => {
     setSortConfig((prev) => ({
       key,
@@ -1622,7 +1627,7 @@ const TestRequestManagement = () => {
                           </button>
                           {request.fileUrl ? (
                             <a
-                              href={request.fileUrl}
+                              href={buildApiUrl(request.fileUrl)}
                               className="p-2 hover:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-105"
                               target="_blank"
                               rel="noreferrer"

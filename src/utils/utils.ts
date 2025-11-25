@@ -43,3 +43,11 @@ export const buildURL = (base: string, params: Record<string, any>): string => {
   const query = buildQuery(params);
   return query ? `${base}?${query}` : base;
 };
+
+export const buildApiUrl = (path: string) => {
+  if (!path) return '';
+  const apiUrl = import.meta.env.VITE_API_URL;
+  // nếu BE sau này trả full URL thì vẫn chơi được
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${apiUrl}${path}`;
+};
