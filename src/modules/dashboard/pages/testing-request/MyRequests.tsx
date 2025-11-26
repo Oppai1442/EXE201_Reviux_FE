@@ -1265,7 +1265,7 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                           </span>
                         </div>
                         <a
-                          href={buildApiUrl(request.fileUrl)}
+                          href={buildApiUrl(request.attachmentDownloadUrl)}
                           className="text-xs text-cyan-300 transition-colors duration-200 hover:text-cyan-100"
                           target="_blank"
                           rel="noreferrer"
