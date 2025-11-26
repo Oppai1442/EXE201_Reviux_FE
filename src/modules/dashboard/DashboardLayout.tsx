@@ -95,7 +95,7 @@ const DashboardLayout = () => {
       label: ROUTES.DASHBOARD.child.MY_TRANSACTION.label,
       icon: CreditCard,
       submenu: null,
-      // roles: ["ROLE_USER"]
+      roles: ["ROLE_USER"]
     },
     {
       id: ROUTES.DASHBOARD.child.TRANSACTION.path,
