@@ -235,7 +235,12 @@ const MyPaymentManagement = () => {
                             <Download className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" />
                             Export Report
                         </button>
-                        <button onClick={() => setOpenTopup(true)} className="group px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 rounded-xl font-light transition-all duration-300 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-105 flex items-center gap-2">
+                        <button
+                            onClick={() => setOpenTopup(true)}
+                            disabled
+                            title="The project will stop working soon, the feature unavailable"
+                            className="group px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-xl font-light transition-all duration-300 shadow-lg shadow-cyan-500/30 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
                             <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
                             New Transaction
                         </button>
