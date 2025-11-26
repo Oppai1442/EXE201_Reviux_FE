@@ -21,12 +21,12 @@ export const getAdminTransactionSummaryAPI = async(filters: Record<string, unkno
     const query = buildQuery(filters)
     const url = query ? `/transaction/admin/summary?${query}` : "/transaction/admin/summary"
     const response = await getData(url)
-    return response.data?.data ?? null
+    return response.data
 }
 
 export const getAdminTransactionsAPI = async(params: Record<string, unknown> = {}) => {
     const query = buildQuery(params)
     const url = query ? `/transaction/admin?${query}` : "/transaction/admin"
     const response = await getData(url)
-    return response.data?.data ?? null
+    return response.data
 }
