@@ -22,6 +22,8 @@ import {
 const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
+  const [isLoading] = useState(true);
+  const [hasError] = useState(true);
   const [particles, setParticles] = useState([]);
   const [visibleSections, setVisibleSections] = useState(new Set());
   const sectionRefs = useRef([]);
@@ -61,30 +63,30 @@ const Dashboard = () => {
   const stats = [
     {
       title: 'Total Revenue',
-      value: '$124,592',
-      change: '+12.5%',
-      trend: 'up',
+      value: isLoading ? 'Loading…' : '$124,592',
+      change: isLoading ? '—' : '+12.5%',
+      trend: 'neutral',
       icon: DollarSign,
     },
     {
       title: 'Active Users',
-      value: '8,549',
-      change: '+8.2%',
-      trend: 'up',
+      value: isLoading ? 'Loading…' : '8,549',
+      change: isLoading ? '—' : '+8.2%',
+      trend: 'neutral',
       icon: Users,
     },
     {
       title: 'Orders',
-      value: '2,847',
-      change: '-2.1%',
-      trend: 'down',
+      value: isLoading ? 'Loading…' : '2,847',
+      change: isLoading ? '—' : '-2.1%',
+      trend: 'neutral',
       icon: ShoppingCart,
     },
     {
       title: 'Conversion Rate',
-      value: '3.24%',
-      change: '+5.4%',
-      trend: 'up',
+      value: isLoading ? 'Loading…' : '3.24%',
+      change: isLoading ? '—' : '+5.4%',
+      trend: 'neutral',
       icon: Target,
     }
   ];
@@ -213,7 +215,7 @@ const Dashboard = () => {
                       ? 'bg-cyan-400/10 text-cyan-400 border-cyan-400/30'
                       : 'bg-red-400/10 text-red-400 border-red-400/30'
                   }`}>
-                    {stat.trend === 'up' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                    {stat.trend === 'up' ? <ArrowUp className="w-3 h-3" /> : stat.trend === 'down' ? <ArrowDown className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
                     {stat.change}
                   </div>
                 </div>
@@ -248,11 +250,19 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="h-64 bg-gray-800/20 rounded-xl flex items-center justify-center border border-gray-800/50 backdrop-blur-sm">
-              <div className="text-center">
-                <TrendingUp className="w-12 h-12 text-cyan-400/30 mx-auto mb-3" />
-                <p className="text-gray-500 font-light">Chart visualization</p>
-                <p className="text-sm text-cyan-400 mt-2 font-light">Revenue trending upward by 12.5%</p>
-              </div>
+              {hasError ? (
+                <div className="text-center">
+                  <AlertCircle className="w-12 h-12 text-red-400/50 mx-auto mb-3" />
+                  <p className="text-red-300 font-light">Failed to load revenue analytics.</p>
+                  <p className="text-xs text-gray-500 mt-2">Please try again later.</p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <TrendingUp className="w-12 h-12 text-cyan-400/30 mx-auto mb-3" />
+                  <p className="text-gray-500 font-light">Chart visualization</p>
+                  <p className="text-sm text-cyan-400 mt-2 font-light">Revenue trending upward by 12.5%</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -266,27 +276,33 @@ const Dashboard = () => {
           >
             <h3 className="text-xl font-light text-white mb-6">Recent <span className="text-cyan-400">Activity</span></h3>
             <div className="space-y-3">
-              {recentActivity.map((activity, index) => {
-                const Icon = activity.icon;
-                return (
-                  <div 
-                    key={activity.id} 
-                    className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-800/20 transition-all duration-300"
-                    style={{ transitionDelay: `${index * 50}ms` }}
-                  >
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center border ${getStatusColor(activity.status)}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-light">{activity.action}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Clock className="w-3 h-3 text-gray-500" />
-                        <p className="text-xs text-gray-500 font-light">{activity.time}</p>
+              {isLoading ? (
+                <p className="text-gray-500 text-sm font-light">Loading recent activity…</p>
+              ) : hasError ? (
+                <p className="text-red-400 text-sm font-light">Unable to fetch activity feed.</p>
+              ) : (
+                recentActivity.map((activity, index) => {
+                  const Icon = activity.icon;
+                  return (
+                    <div 
+                      key={activity.id} 
+                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-800/20 transition-all duration-300"
+                      style={{ transitionDelay: `${index * 50}ms` }}
+                    >
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center border ${getStatusColor(activity.status)}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-light">{activity.action}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <Clock className="w-3 h-3 text-gray-500" />
+                          <p className="text-xs text-gray-500 font-light">{activity.time}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
             <button className="w-full mt-5 px-4 py-3 bg-gray-800/30 hover:bg-gray-800/50 border border-gray-800/50 hover:border-cyan-400/50 rounded-xl text-gray-400 hover:text-cyan-400 font-light transition-all duration-300">
               View All Activity
@@ -314,32 +330,38 @@ const Dashboard = () => {
               </button>
             </div>
             <div className="space-y-3">
-              {topProducts.map((product, index) => (
-                <div 
-                  key={index} 
-                  className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-800/20 border border-transparent hover:border-gray-800/50 transition-all duration-300"
-                  style={{ transitionDelay: `${index * 50}ms` }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border border-cyan-400/30 rounded-lg flex items-center justify-center">
-                      <span className="text-cyan-400 font-light text-sm">#{index + 1}</span>
+              {isLoading ? (
+                <p className="text-gray-500 text-sm font-light">Loading product leaderboard…</p>
+              ) : hasError ? (
+                <p className="text-red-400 text-sm font-light">Unable to load product data.</p>
+              ) : (
+                topProducts.map((product, index) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-800/20 border border-transparent hover:border-gray-800/50 transition-all duration-300"
+                    style={{ transitionDelay: `${index * 50}ms` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border border-cyan-400/30 rounded-lg flex items-center justify-center">
+                        <span className="text-cyan-400 font-light text-sm">#{index + 1}</span>
+                      </div>
+                      <div>
+                        <p className="text-white font-light">{product.name}</p>
+                        <p className="text-gray-400 text-sm font-light">{product.sales} sales</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-white font-light">{product.name}</p>
-                      <p className="text-gray-400 text-sm font-light">{product.sales} sales</p>
+                    <div className="text-right">
+                      <p className="text-white font-light">{product.revenue}</p>
+                      <div className={`flex items-center gap-1 ${product.trend === 'up' ? 'text-cyan-400' : 'text-red-400'}`}>
+                        {product.trend === 'up' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                        <span className="text-xs font-light">
+                          {product.trend === 'up' ? '+' : '-'}{Math.floor(Math.random() * 15) + 1}%
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-white font-light">{product.revenue}</p>
-                    <div className={`flex items-center gap-1 ${product.trend === 'up' ? 'text-cyan-400' : 'text-red-400'}`}>
-                      {product.trend === 'up' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-                      <span className="text-xs font-light">
-                        {product.trend === 'up' ? '+' : '-'}{Math.floor(Math.random() * 15) + 1}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -352,52 +374,60 @@ const Dashboard = () => {
             }`}
           >
             <h3 className="text-xl font-light text-white mb-6">Performance <span className="text-cyan-400">Metrics</span></h3>
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-400 font-light">Server Response Time</span>
-                  <span className="text-white font-light">124ms</span>
+            {isLoading ? (
+              <p className="text-gray-500 font-light text-sm">Gathering telemetry…</p>
+            ) : hasError ? (
+              <div className="text-red-400 font-light text-sm">
+                Unable to load performance metrics right now.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 font-light">Server Response Time</span>
+                    <span className="text-white font-light">124ms</span>
+                  </div>
+                  <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
+                    <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000" style={{ width: '85%' }}></div>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000" style={{ width: '85%' }}></div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 font-light">Database Performance</span>
+                    <span className="text-white font-light">92%</span>
+                  </div>
+                  <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
+                    <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000 delay-100" style={{ width: '92%' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 font-light">API Success Rate</span>
+                    <span className="text-white font-light">99.7%</span>
+                  </div>
+                  <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
+                    <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000 delay-200" style={{ width: '99.7%' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 font-light">Memory Usage</span>
+                    <span className="text-white font-light">68%</span>
+                  </div>
+                  <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
+                    <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000 delay-300" style={{ width: '68%' }}></div>
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-400 font-light">Database Performance</span>
-                  <span className="text-white font-light">92%</span>
-                </div>
-                <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000 delay-100" style={{ width: '92%' }}></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-400 font-light">API Success Rate</span>
-                  <span className="text-white font-light">99.7%</span>
-                </div>
-                <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000 delay-200" style={{ width: '99.7%' }}></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-400 font-light">Memory Usage</span>
-                  <span className="text-white font-light">68%</span>
-                </div>
-                <div className="w-full bg-gray-800/30 rounded-full h-2 overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-500 to-cyan-400 h-2 rounded-full transition-all duration-1000 delay-300" style={{ width: '68%' }}></div>
-                </div>
-              </div>
-            </div>
-
-            <button className="group w-full mt-6 px-6 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 rounded-xl font-light text-white transition-all duration-300 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105">
-              <div className="flex items-center justify-center gap-2">
+            <button className="group w-full mt-6 px-6 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 rounded-xl font-light text-white transition-all duration-300 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105" disabled>
+              <div className="flex items-center justify-center gap-2 opacity-60">
                 <Zap className="w-5 h-5" />
-                Optimize Performance
+                {isLoading ? 'Optimizing…' : hasError ? 'Unavailable' : 'Optimize Performance'}
                 <ArrowUp className="w-4 h-4 transition-transform duration-300 group-hover:translate-y-[-2px]" />
               </div>
             </button>
