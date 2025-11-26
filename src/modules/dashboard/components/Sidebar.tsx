@@ -1,6 +1,7 @@
 import { useState, useEffect, type ElementType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 type MenuItem = {
   id?: string;
@@ -28,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const [submenuOpen, setSubmenuOpen] = useState<Record<string, boolean>>({});
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     const sidebarElement = document.querySelector<HTMLElement>('.sidebar-container');
@@ -99,6 +101,22 @@ const Sidebar: React.FC<SidebarProps> = ({
     const key = resolveItemKey(item);
     return key ? !!submenuOpen[key] : false;
   };
+
+  const displayName =
+    user?.fullName?.trim() ||
+    user?.username?.trim() ||
+    user?.email?.split('@')[0] ||
+    'Guest';
+
+  const initials =
+    displayName
+      .split(' ')
+      .map(part => part[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'RV';
+
+  const roleLabel = user?.role?.name || 'USER';
 
   return (
     <>
@@ -239,15 +257,24 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4 hover:border-cyan-400/30 transition-all duration-300">
               <div className="flex items-center gap-3">
                 <div className="relative group">
-                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/30 transition-all duration-300 group-hover:shadow-cyan-500/50">
-                    <span className="text-white text-xs font-light">AD</span>
+                  <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/30 transition-all duration-300 group-hover:shadow-cyan-500/50">
+                    <span className="text-white text-xs font-light">{initials}</span>
                   </div>
                   <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-cyan-400 to-cyan-500 opacity-0 group-hover:opacity-100 blur-lg transition-opacity duration-300" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-light text-white truncate">Admin User</div>
-                  <div className="text-xs text-gray-500 font-light">admin@reviux.com</div>
+                  <div className="text-sm font-light text-white truncate">
+                    {loading ? 'Authenticating…' : displayName}
+                  </div>
+                  <div className="text-xs text-gray-500 font-light truncate">
+                    {loading ? 'Loading profile' : user?.email ?? 'guest@reviux.com'}
+                  </div>
                 </div>
+                {!loading && (
+                  <span className="text-[10px] px-2 py-1 rounded-full border border-cyan-400/40 text-cyan-300 bg-cyan-400/10 uppercase tracking-wide">
+                    {roleLabel.replace('ROLE_', '')}
+                  </span>
+                )}
               </div>
             </div>
           </div>
