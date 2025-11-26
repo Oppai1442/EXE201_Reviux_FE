@@ -21,6 +21,7 @@ import {
   Loader2,
   Plus,
   Zap,
+  Star,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -37,6 +38,7 @@ import {
   getTestingRequestStatusesAPI,
   acceptTestingQuoteAPI,
   confirmTestingCompletionAPI,
+  submitTestingRequestFeedbackAPI,
   type ApiUser,
   type BugComment,
   type BugReport,
@@ -45,6 +47,7 @@ import {
   type TestingUpdateInfo,
   type TestingRequestStatusOption,
   type TestingScopeItem,
+  type TestingRequestFeedback,
 } from "./services/testingRequestService";
 import {
   getCurrentUserTokensAPI,
@@ -85,6 +88,7 @@ interface RequestItem {
   desiredDeadline?: string | null;
   attachmentDownloadUrl?: string | null;
   attachmentFileName?: string | null;
+  feedback?: TestingRequestFeedback | null;
   updates: TestingUpdateInfo[];
   logs: TestLogInfo[];
   bugReports: BugReport[];
@@ -156,7 +160,173 @@ interface RequestDetailsDrawerProps {
   onConfirmCompletion?: (request: RequestItem) => void;
   acceptingQuote?: boolean;
   confirmingCompletion?: boolean;
+  onSubmitFeedback?: (request: RequestItem, payload: FeedbackFormValues) => void;
+  submittingFeedback?: boolean;
+  allowFeedback?: boolean;
 }
+
+interface FeedbackFormValues {
+  rating: number;
+  comment?: string;
+}
+
+interface FeedbackPanelProps {
+  request: RequestItem;
+  allowFeedback?: boolean;
+  onSubmitFeedback?: (request: RequestItem, payload: FeedbackFormValues) => void;
+  submittingFeedback?: boolean;
+}
+
+const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
+  request,
+  allowFeedback = false,
+  onSubmitFeedback,
+  submittingFeedback = false,
+}) => {
+  const [rating, setRating] = useState<number | null>(request.feedback?.rating ?? null);
+  const [comment, setComment] = useState(request.feedback?.comment ?? "");
+  const [isEditing, setIsEditing] = useState(!request.feedback);
+
+  useEffect(() => {
+    setRating(request.feedback?.rating ?? null);
+    setComment(request.feedback?.comment ?? "");
+    setIsEditing(!request.feedback);
+  }, [request]);
+
+  const canEdit = allowFeedback && request.status === "COMPLETED";
+  const displayForm = canEdit && (isEditing || !request.feedback);
+  const activeRating = rating ?? 0;
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onSubmitFeedback || rating === null) {
+      return;
+    }
+    const payload: FeedbackFormValues = {
+      rating,
+      comment: comment.trim() ? comment.trim() : undefined,
+    };
+    onSubmitFeedback(request, payload);
+  };
+
+  const starValues = [1, 2, 3, 4, 5];
+
+  return (
+    <div className="rounded-2xl border border-gray-800/70 bg-gray-900/50 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-light text-white">Share your feedback</h3>
+          <p className="text-xs text-gray-400">
+            A quick rating helps us improve the testing experience.
+          </p>
+        </div>
+        {request.feedback && canEdit && !displayForm && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="text-xs text-cyan-300 hover:text-cyan-100"
+          >
+            Update feedback
+          </button>
+        )}
+      </div>
+
+      {displayForm ? (
+        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">Satisfaction</div>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              {starValues.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`rounded-full border border-transparent p-1 transition-colors duration-150 ${
+                    value <= activeRating ? "text-amber-300" : "text-gray-600 hover:text-gray-400"
+                  }`}
+                  onClick={() => setRating(value)}
+                  aria-label={`Set rating to ${value}`}
+                >
+                  <Star
+                    className="h-6 w-6"
+                    fill={value <= activeRating ? "currentColor" : "none"}
+                    strokeWidth={1.5}
+                  />
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setRating(0)}
+                className={`rounded-full border px-2 py-1 text-xs ${
+                  activeRating === 0
+                    ? "border-rose-400/60 text-rose-300"
+                    : "border-gray-800/60 text-gray-500 hover:border-rose-400/40 hover:text-rose-200"
+                }`}
+              >
+                0 - Very dissatisfied
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs uppercase tracking-wide text-gray-500">
+              Comment <span className="text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              className="mt-2 w-full rounded-lg border border-gray-800/70 bg-gray-900/60 p-3 text-sm text-gray-100 placeholder:text-gray-500 focus:border-cyan-500/70 focus:outline-none"
+              placeholder="Tell us what went well or what needs improvement..."
+              rows={3}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={rating === null || submittingFeedback}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-cyan-600 px-4 py-2 text-sm font-medium text-white transition-transform duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submittingFeedback ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <MessageCircle className="h-4 w-4" />
+            )}
+            {request.feedback ? "Update Feedback" : "Submit Feedback"}
+          </button>
+          <p className="text-center text-xs text-gray-500">
+            Feedback is required before creating a support ticket.
+          </p>
+        </form>
+      ) : request.feedback ? (
+        <div className="mt-4 space-y-3 rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
+          <div className="flex items-center gap-2 text-amber-300">
+            {starValues.map((value) => (
+              <Star
+                key={`summary-${value}`}
+                className="h-5 w-5"
+                strokeWidth={1.5}
+                fill={value <= (request.feedback?.rating ?? 0) ? "currentColor" : "none"}
+              />
+            ))}
+            <span className="text-sm text-gray-200">{request.feedback.rating} / 5</span>
+          </div>
+          {request.feedback.comment ? (
+            <p className="text-sm text-gray-200">{request.feedback.comment}</p>
+          ) : (
+            <p className="text-xs text-gray-500">No additional comments were provided.</p>
+          )}
+          <div className="text-xs text-gray-500">
+            Submitted {formatDateTime(request.feedback.updatedAt ?? request.feedback.createdAt)}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-gray-500">
+          Feedback has not been recorded yet. Team members can view it once the customer submits their
+          rating.
+        </p>
+      )}
+    </div>
+  );
+};
 
 const DEFAULT_PRIORITY: RequestPriority = "medium";
 const ITEMS_PER_PAGE = 6;
@@ -800,6 +970,9 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
   onConfirmCompletion,
   acceptingQuote = false,
   confirmingCompletion = false,
+  onSubmitFeedback,
+  submittingFeedback = false,
+  allowFeedback = false,
 }) => {
   if (!request) {
     return null;
@@ -1130,6 +1303,15 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                 </button>
               )}
 
+              {request.status === "COMPLETED" && (
+                <FeedbackPanel
+                  request={request}
+                  allowFeedback={allowFeedback}
+                  onSubmitFeedback={onSubmitFeedback}
+                  submittingFeedback={submittingFeedback}
+                />
+              )}
+
               {canCreateTicket && onCreateTicket && (
                 <button
                   type="button"
@@ -1299,6 +1481,7 @@ const MyRequestsPage: React.FC = () => {
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [acceptingQuote, setAcceptingQuote] = useState(false);
   const [confirmingCompletion, setConfirmingCompletion] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [statusOptions, setStatusOptions] = useState<TestingRequestStatusOption[]>([]);
   const [tourRun, setTourRun] = useState(false);
   const [tourKey, setTourKey] = useState(() => Date.now());
@@ -1402,6 +1585,7 @@ const MyRequestsPage: React.FC = () => {
         testingTypes: detail.testingTypes ?? [],
         attachmentDownloadUrl: detail.attachmentDownloadUrl ?? null,
         attachmentFileName: detail.attachmentFileName ?? null,
+        feedback: detail.feedback ?? null,
         updates: detail.updates ?? [],
         logs: detail.logs ?? [],
         bugReports: reports,
@@ -1659,6 +1843,33 @@ const ownerId = user?.id ?? null;
       }
     },
     [confirmingCompletion, refreshRequestsAndSelect],
+  );
+
+  const handleSubmitFeedback = useCallback(
+    async (request: RequestItem, payload: FeedbackFormValues) => {
+      if (submittingFeedback) {
+        return;
+      }
+      setSubmittingFeedback(true);
+      const trimmedPayload: FeedbackFormValues = {
+        rating: payload.rating,
+        comment: payload.comment?.trim() ? payload.comment.trim() : undefined,
+      };
+      try {
+        const feedback = await submitTestingRequestFeedbackAPI(request.id, trimmedPayload);
+        setRequests((prev) =>
+          prev.map((item) => (item.id === request.id ? { ...item, feedback } : item)),
+        );
+        setSelectedRequest((prev) => (prev && prev.id === request.id ? { ...prev, feedback } : prev));
+        toast.success("Thanks for sharing your feedback!");
+      } catch (error) {
+        console.error("Failed to submit testing request feedback", error);
+        toast.error("Unable to save your feedback right now.");
+      } finally {
+        setSubmittingFeedback(false);
+      }
+    },
+    [submittingFeedback],
   );
 
   useEffect(() => {
@@ -2172,11 +2383,16 @@ const ownerId = user?.id ?? null;
         getStatusMeta={getStatusMeta}
         onCreateTicket={handleCreateTicketFromRequest}
         creatingTicket={creatingTicket}
-        canCreateTicket={Boolean(selectedRequest && selectedRequest.status === "COMPLETED" && !isStaff)}
+        canCreateTicket={Boolean(
+          selectedRequest && selectedRequest.status === "COMPLETED" && !isStaff && selectedRequest.feedback,
+        )}
         onAcceptQuote={handleAcceptQuote}
         onConfirmCompletion={handleConfirmCompletion}
         acceptingQuote={acceptingQuote}
         confirmingCompletion={confirmingCompletion}
+        onSubmitFeedback={handleSubmitFeedback}
+        submittingFeedback={submittingFeedback}
+        allowFeedback={!isStaff}
       />
     </div>
           <style>{`

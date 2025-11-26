@@ -16,6 +16,7 @@ import {
   ChevronRight,
   X,
   Loader2,
+  Star,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -42,6 +43,7 @@ import {
   type TestingUpdateInfo,
   type AssignableTester,
   type TestingRequestStatusOption,
+  type TestingRequestFeedback,
 } from './services/testingRequestService';
 import { buildApiUrl } from '@/utils';
 
@@ -77,6 +79,7 @@ interface RequestTableItem {
   fileUrl: string | null;
   details: TestingRequestDetails;
   bugReports: BugReport[];
+  feedback?: TestingRequestFeedback | null;
 }
 
 const DEFAULT_PRIORITY: RequestPriority = 'medium';
@@ -939,6 +942,17 @@ const TestRequestManagement = () => {
       setFormSubmitting(false);
     }
   };
+
+  const handleFeedbackClick = useCallback((feedback?: TestingRequestFeedback | null) => {
+    if (!feedback || !feedback.comment) {
+      return;
+    }
+    const message = feedback.comment.trim();
+    if (!message) {
+      return;
+    }
+    toast(message, { icon: '💬' });
+  }, []);
   const itemsPerPage = 10;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef(false);
@@ -1012,6 +1026,7 @@ const TestRequestManagement = () => {
           fileUrl: detail.attachmentDownloadUrl ?? detail.fileUrl ?? null,
           details: detail,
           bugReports: associatedBugs,
+          feedback: detail.feedback ?? null,
         };
       });
 
@@ -1068,6 +1083,7 @@ const TestRequestManagement = () => {
       'TEST_LOG',
       'BUG_REPORT',
       'BUG_COMMENT',
+      'TESTING_REQUEST_FEEDBACK',
     ]);
     const since = lastSyncRef.current;
     const hasRelevant = notifications.some((n) => {
@@ -1550,19 +1566,20 @@ const TestRequestManagement = () => {
                     </button>
                   </th>
                   <th className="px-6 py-4 text-left font-light text-gray-300 whitespace-nowrap">Progress</th>
+                  <th className="px-6 py-4 text-left font-light text-gray-300 whitespace-nowrap">Feedback</th>
                   <th className="px-6 py-4 text-left font-light text-gray-300 whitespace-nowrap">Actions</th>
               </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-gray-400 font-light">
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-400 font-light">
                       Loading requests...
                     </td>
                   </tr>
                 ) : currentRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-gray-400 font-light">
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-400 font-light">
                       No requests found with the current filters.
                     </td>
                   </tr>
@@ -1612,6 +1629,35 @@ const TestRequestManagement = () => {
                           />
                         </div>
                         <span className="text-xs text-gray-400 mt-1">{request.progress}%</span>
+                      </td>
+                      <td className="px-6 py-4 align-top">
+                        {typeof request.feedback?.rating === 'number' ? (
+                          <div>
+                            <button
+                              type="button"
+                              onClick={
+                                request.feedback.comment ? () => handleFeedbackClick(request.feedback) : undefined
+                              }
+                              className={`text-sm font-semibold ${
+                                request.feedback.comment
+                                  ? 'text-cyan-300 hover:text-cyan-100 underline underline-offset-4'
+                                  : 'text-gray-200 cursor-default'
+                              }`}
+                              title={
+                                request.feedback.comment
+                                  ? 'Click to view customer comment'
+                                  : 'No comment provided'
+                              }
+                            >
+                              {request.feedback.rating} / 5
+                            </button>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {request.feedback.comment ? 'Comment available' : 'No comment'}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-500">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 align-top">
                         <div
@@ -1839,6 +1885,33 @@ const TestRequestManagement = () => {
                     </div>
                   )}
                 </div>
+
+                {selectedRequest.details.feedback && (
+                  <div className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-4">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-500">
+                      <Star className="w-3 h-3 text-amber-300" />
+                      Customer Feedback
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-lg font-light text-amber-300">
+                      <Star className="w-5 h-5" fill="currentColor" strokeWidth={1.5} />
+                      <span>{selectedRequest.details.feedback.rating} / 5</span>
+                    </div>
+                    {selectedRequest.details.feedback.comment ? (
+                      <p className="mt-3 text-sm font-light text-gray-300">
+                        {selectedRequest.details.feedback.comment}
+                      </p>
+                    ) : (
+                      <p className="mt-3 text-xs font-light text-gray-500">No comment provided.</p>
+                    )}
+                    <div className="mt-2 text-xs text-gray-500">
+                      Updated{' '}
+                      {formatDateTime(
+                        selectedRequest.details.feedback.updatedAt ??
+                          selectedRequest.details.feedback.createdAt,
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-4">
                   <div className="text-xs uppercase tracking-wide text-gray-500">Assigned Tester</div>

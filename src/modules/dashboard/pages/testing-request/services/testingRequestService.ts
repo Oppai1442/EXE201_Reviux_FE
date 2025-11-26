@@ -31,6 +31,15 @@ export interface TestingScopeItem {
   tokens: number;
 }
 
+export interface TestingRequestFeedback {
+  id: number;
+  requestId: number;
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TestingRequestDetails {
   id: number;
   title: string;
@@ -62,6 +71,7 @@ export interface TestingRequestDetails {
   desiredDeadline?: string | null;
   attachmentDownloadUrl?: string | null;
   attachmentFileName?: string | null;
+  feedback?: TestingRequestFeedback | null;
 }
 
 export interface TestingRequestStatusOption {
@@ -269,4 +279,17 @@ export const markReadyForReviewAPI = async (requestId: number, payload?: Lifecyc
 
 export const confirmTestingCompletionAPI = async (requestId: number, payload?: LifecycleDecisionPayload) => {
   await postData(`/testing-requests/${requestId}/complete`, payload ?? {});
+};
+
+export interface SubmitTestingRequestFeedbackPayload {
+  rating: number;
+  comment?: string;
+}
+
+export const submitTestingRequestFeedbackAPI = async (
+  requestId: number,
+  payload: SubmitTestingRequestFeedbackPayload,
+) => {
+  const response = await postData<TestingRequestFeedback>(`/testing-requests/${requestId}/feedback`, payload);
+  return response.data;
 };
