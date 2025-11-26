@@ -54,6 +54,7 @@ import {
   buyTokensAPI,
   type UserTokenInfo,
 } from "./services/userTokenService";
+import { buildApiUrl } from "@/utils";
 
 type RequestStatus = string;
 type RequestPriority = "urgent" | "high" | "medium" | "low";
@@ -1264,7 +1265,7 @@ const RequestDetailsDrawer: React.FC<RequestDetailsDrawerProps> = ({
                           </span>
                         </div>
                         <a
-                          href={request.attachmentDownloadUrl}
+                          href={buildApiUrl(request.fileUrl)}
                           className="text-xs text-cyan-300 transition-colors duration-200 hover:text-cyan-100"
                           target="_blank"
                           rel="noreferrer"
