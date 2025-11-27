@@ -240,6 +240,21 @@ const RevuixLanding = () => {
       {/* Floating Particles */}
       <Particles />
 
+      {/* Service Notice */}
+      <section className="relative z-10 px-4 sm:px-6 lg:px-8 pt-32">
+        <div className="max-w-4xl mx-auto bg-amber-500/10 border border-amber-400/40 rounded-2xl p-6 text-center backdrop-blur">
+          <p className="text-lg text-amber-100 font-light mb-2">
+            Our service has been discontinued and is no longer in operation.
+          </p>
+          <p className="text-base text-amber-100/90 font-light mb-2">
+            This website remains available as an archive/reference.
+          </p>
+          <p className="text-base text-amber-100/80 font-light">
+            All interactive features have been disabled.
+          </p>
+        </div>
+      </section>
+
       {/* Hero Section */}
       <section id="home" className="relative min-h-screen flex items-center justify-center pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
