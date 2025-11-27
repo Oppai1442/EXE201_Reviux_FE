@@ -67,13 +67,13 @@ const ContactUs = () => {
     {
       icon: Phone,
       title: "Phone",
-      info: "+84 123 456 789",
+      info: "+84 366862288",
       gradient: "from-cyan-400/20 to-cyan-600/20"
     },
     {
       icon: Mail,
       title: "Email",
-      info: "contact@example.com",
+      info: "datvpse171622@fpt.edu.vn",
       gradient: "from-cyan-400/20 to-cyan-600/20"
     },
     {
