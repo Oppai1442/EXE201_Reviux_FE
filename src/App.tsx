@@ -16,6 +16,7 @@ import { ROUTES } from "./constant/routes";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 import { Loading } from "@/components/Loading"; // Thêm import này
+import { ServerStatusWatcher } from "./components/ServerStatusWatcher/ServerStatusWatcher";
 
 // Styles
 import styles from "./styles/App.module.css";
@@ -117,6 +118,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {matchedConfig.showNav && <Navbar />}
           <main className={styles.mainContainer}>{children}</main>
           {matchedConfig.showFooter && <Footer />}
+          <ServerStatusWatcher />
         </NotificationProvider>
       </AuthProvider>
     </STOMPProvider>
